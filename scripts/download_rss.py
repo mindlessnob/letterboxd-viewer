@@ -215,7 +215,7 @@ def download_rss():
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v5) ---
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v6) ---
                 img_url = None
                 review_link_elem = item.find('link')
                 review_link = review_link_elem.text if review_link_elem is not None else None
@@ -238,11 +238,13 @@ def download_rss():
                             page_response.raise_for_status()
                             page_soup = BeautifulSoup(page_response.content, 'html.parser')
                             
-                            # --- NEW METHOD (v5): Find the <script type="application/ld+json"> tag ---
+                            # --- NEW METHOD (v6): Find the <script type="application/ld+json"> tag and .strip() the content ---
                             json_script_tag = page_soup.find('script', type='application/ld+json')
                             
-                            if json_script_tag:
-                                json_data = json.loads(json_script_tag.string)
+                            if json_script_tag and json_script_tag.string:
+                                # Use .strip() to remove leading/trailing whitespace/newlines that cause JSON errors
+                                json_data = json.loads(json_script_tag.string.strip()) 
+                                
                                 if json_data and json_data.get('image'):
                                     img_url = json_data['image']
                                     if 'alternative-poster' in img_url:
@@ -255,6 +257,7 @@ def download_rss():
                                 print("No JSON-LD script tag found. Falling back to RSS.")
                                 
                     except Exception as e:
+                        # Log the original review_link in the error message for clarity
                         print(f"Scraping failed for {review_link}: {e}. Falling back to RSS.")
                 
                 # 2. If scraping failed, fall back to the RSS description
