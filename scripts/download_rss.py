@@ -33,7 +33,9 @@ fulls_dir.mkdir(parents=True, exist_ok=True)
 # Function to download images
 def download_image(url, path):
     try:
-        response = requests.get(url)
+        # Add a user-agent to look like a browser
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
         
         # Ensure path is a Path object
@@ -137,7 +139,6 @@ def clean_description(description):
     2. Removing non-renderable HTML
     3. Removing empty paragraph tags
     4. Trimming whitespace
-    5. Ensuring cleaned content appears below article content
     
     Args:
         description (str): The HTML description content from the RSS feed
@@ -168,8 +169,7 @@ def clean_description(description):
                 p.decompose()
         
         # Keep only renderable HTML elements (p, br, a, ul, ol, li, etc.)
-        # This is a whitelist approach to ensure only safe elements remain
-        allowed_tags = ['p', 'br', 'a', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'span', 'div']
+        allowed_tags = ['p', 'br', 'a', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'span', 'div', 'blockquote']
         for tag in soup.find_all():
             if tag.name not in allowed_tags:
                 # Replace with its text content
@@ -213,25 +213,73 @@ def download_rss():
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # Find image URL using more robust parsing
-                img_match = re.search(r'src="([^"]+)"', description)
-                if img_match:
-                    img_url = img_match.group(1)
-                    
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC ---
+                img_url = None
+                review_link_elem = item.find('link')
+                review_link = review_link_elem.text if review_link_elem is not None else None
+
+                # 1. Try to scrape the main film page for the custom poster
+                if review_link and '/film/' in review_link:
+                    try:
+                        # This is the NEW logic:
+                        # 1. Remove the trailing slash: '.../film/eyes-wide-shut/2/' -> '.../film/eyes-wide-shut/2'
+                        # 2. Split by '/': ['...', 'film', 'eyes-wide-shut', '2']
+                        # 3. Check if the last part is a number (a log ID)
+                        # 4. If it is, remove it to get the main film page URL
+                        
+                        parts = review_link.rstrip('/').split('/')
+                        if parts[-1].isdigit():
+                            # This is a diary log page, remove the log number
+                            main_film_url = '/'.join(parts[:-1]) + '/'
+                        else:
+                            # This is already the main film page (or a list)
+                            main_film_url = review_link
+
+                        # We only scrape if it's a film page, not a list page
+                        if '/film/' in main_film_url:
+                            print(f"Scraping main film page for custom poster: {main_film_url}")
+                            # Add a user-agent to look like a browser
+                            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+                            page_response = requests.get(main_film_url, timeout=10, headers=headers)
+                            page_response.raise_for_status()
+                            page_soup = BeautifulSoup(page_response.content, 'html.parser')
+                            
+                            # Find the poster div (as identified from your HTML snippet)
+                            poster_div = page_soup.find('div', class_='film-poster')
+                            if poster_div:
+                                img_tag = poster_div.find('img')
+                                if img_tag and img_tag.get('src'):
+                                    img_url = img_tag['src']
+                                    print(f"Found poster via scraping: {img_url}")
+                    except Exception as e:
+                        print(f"Scraping failed for {review_link}: {e}. Falling back to RSS.")
+                
+                # 2. If scraping failed or it's not a film, fall back to the RSS description
+                if not img_url:
+                    print("Falling back to RSS description for image.")
+                    img_match = re.search(r'src="([^"]+)"', description)
+                    if img_match:
+                        img_url = img_match.group(1)
+                        print(f"Found poster via RSS: {img_url}")
+
+                # 3. If we have ANY img_url (scraped or RSS), process it
+                if img_url:
                     # Get base filename
                     base_filename = sanitize_filename(title)
                     
-                    # Check if this is a list entry (contains "letterboxd-list-")
+                    # Check if this is a list entry
                     if "letterboxd-list-" in img_url:
-                        # For list entries, we'll keep the original image URL
-                        img_url = img_url
+                        pass # Keep original URL for list entries
                     else:
                         # For movie entries, get the highest resolution possible
-                        # Replace common resolution patterns with higher resolution
-                        img_url = img_url.replace('-0-150-', '-0-2000-')  # Increase from 150 to 2000
-                        img_url = img_url.replace('-0-230-', '-0-2000-')  # Increase from 230 to 2000
-                        img_url = img_url.replace('-0-500-', '-0-2000-')  # Increase from 500 to 2000
-                        img_url = img_url.replace('-0-1000-', '-0-2000-')  # Increase from 1000 to 2000
+                        # This works on BOTH default and 'alternative-poster' URLs
+                        print("Applying high-resolution replacement...")
+                        # Use regex to replace any size pattern with -0-2000-
+                        # e.g., -0-150-0-225-crop
+                        img_url = re.sub(r'-0-\d+-0-\d+(-crop)?', '-0-2000-0-3000-crop', img_url)
+                        # e.g., -0-600-
+                        img_url = re.sub(r'-0-\d+-', '-0-2000-', img_url)
+                        print(f"Upgraded URL: {img_url}")
                     
                     # Define paths for full and thumb images
                     base_filename = base_filename.rstrip('-')  # Remove any trailing hyphens
@@ -248,15 +296,17 @@ def download_rss():
                         # If full exists but thumb doesn't, recreate thumb
                         create_thumbnail(str(full_path), str(thumb_path))
                 
+                # --- END OF IMAGE LOGIC ---
+                
                 # Clean the description content
                 cleaned_description = clean_description(description)
                 
                 # Store the cleaned description with the item's ID
                 item_id = item.find('guid').text
                 cleaned_descriptions[item_id] = cleaned_description
-                    
+                        
             except Exception as e:
-                print(f'Error processing item: {e}')
+                print(f'Error processing item: {e} - Title: {title}')
                 continue
         
         # Save the cleaned RSS data to a new file
@@ -274,12 +324,16 @@ def download_rss():
                 continue
             
             # Convert element to string
-            child_str = ET.tostring(child, encoding='unicode')
+            child_str = ET.tring(child, encoding='unicode')
             xml_lines.append(f"    {child_str}")
         
         # Add items with cleaned descriptions
         for item in tree.findall('.//item'):
-            item_id = item.find('guid').text
+            item_id_elem = item.find('guid')
+            if item_id_elem is None:
+                continue # Skip items without a GUID
+            
+            item_id = item_id_elem.text
             
             # Start item tag
             xml_lines.append('    <item>')
@@ -299,8 +353,9 @@ def download_rss():
                 xml_lines.append(f'      <description><![CDATA[{cleaned_desc}]]></description>')
             else:
                 # Fallback to original description
-                desc = item.find('description').text
-                xml_lines.append(f'      <description>{desc}</description>')
+                desc_elem = item.find('description')
+                desc = desc_elem.text if desc_elem is not None else ""
+                xml_lines.append(f'      <description><![CDATA[{desc}]]></description>')
             
             # End item tag
             xml_lines.append('    </item>')
