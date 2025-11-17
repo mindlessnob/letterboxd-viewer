@@ -215,7 +215,7 @@ def download_rss():
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v6) ---
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v7-debug) ---
                 img_url = None
                 review_link_elem = item.find('link')
                 review_link = review_link_elem.text if review_link_elem is not None else None
@@ -237,8 +237,16 @@ def download_rss():
                             page_response = requests.get(main_film_url, timeout=10, headers=headers)
                             page_response.raise_for_status()
                             page_soup = BeautifulSoup(page_response.content, 'html.parser')
+
+                            # --- START DEBUGGING ---
+                            # If this is a film we're testing, print the whole HTML
+                            if 'eyes-wide-shut' in main_film_url or 'the-descent' in main_film_url or 'yi-yi' in main_film_url:
+                                print(f"--- START HTML FOR {main_film_url} ---")
+                                print(page_soup.prettify())
+                                print(f"--- END HTML FOR {main_film_url} ---")
+                            # --- END DEBUGGING ---
                             
-                            # --- NEW METHOD (v6): Find the <script type="application/ld+json"> tag and .strip() the content ---
+                            # --- Find the <script type="application/ld+json"> tag and .strip() the content ---
                             json_script_tag = page_soup.find('script', type='application/ld+json')
                             
                             if json_script_tag and json_script_tag.string:
