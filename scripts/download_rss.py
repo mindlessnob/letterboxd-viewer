@@ -207,13 +207,14 @@ def download_rss():
         
         # Find all items
         for item in tree.findall('.//item'):
+            title = ""
             try:
                 # Extract description and title
                 description_elem = item.find('description')
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # --- NEW CUSTOM POSTER SCRAPING LOGIC ---
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v3) ---
                 img_url = None
                 review_link_elem = item.find('link')
                 review_link = review_link_elem.text if review_link_elem is not None else None
@@ -221,36 +222,30 @@ def download_rss():
                 # 1. Try to scrape the main film page for the custom poster
                 if review_link and '/film/' in review_link:
                     try:
-                        # This is the NEW logic:
-                        # 1. Remove the trailing slash: '.../film/eyes-wide-shut/2/' -> '.../film/eyes-wide-shut/2'
-                        # 2. Split by '/': ['...', 'film', 'eyes-wide-shut', '2']
-                        # 3. Check if the last part is a number (a log ID)
-                        # 4. If it is, remove it to get the main film page URL
-                        
+                        # Trim the diary log number (e.g., /2/) to get the main film page
                         parts = review_link.rstrip('/').split('/')
                         if parts[-1].isdigit():
-                            # This is a diary log page, remove the log number
                             main_film_url = '/'.join(parts[:-1]) + '/'
                         else:
-                            # This is already the main film page (or a list)
                             main_film_url = review_link
 
                         # We only scrape if it's a film page, not a list page
                         if '/film/' in main_film_url:
                             print(f"Scraping main film page for custom poster: {main_film_url}")
-                            # Add a user-agent to look like a browser
                             headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
                             page_response = requests.get(main_film_url, timeout=10, headers=headers)
                             page_response.raise_for_status()
                             page_soup = BeautifulSoup(page_response.content, 'html.parser')
                             
-                            # Find the poster div (as identified from your HTML snippet)
-                            poster_div = page_soup.find('div', class_='film-poster')
-                            if poster_div:
-                                img_tag = poster_div.find('img')
-                                if img_tag and img_tag.get('src'):
-                                    img_url = img_tag['src']
-                                    print(f"Found poster via scraping: {img_url}")
+                            # --- NEW METHOD: Find the og:image meta tag ---
+                            og_image_tag = page_soup.find('meta', property='og:image')
+                            
+                            if og_image_tag and og_image_tag.get('content'):
+                                img_url = og_image_tag['content']
+                                print(f"Found poster via og:image meta tag: {img_url}")
+                            else:
+                                print("og:image meta tag not found. Falling back to RSS feed.")
+                                
                     except Exception as e:
                         print(f"Scraping failed for {review_link}: {e}. Falling back to RSS.")
                 
@@ -261,8 +256,16 @@ def download_rss():
                     if img_match:
                         img_url = img_match.group(1)
                         print(f"Found poster via RSS: {img_url}")
+                
+                # --- NEW CHECK: If we STILL have the empty poster, skip ---
+                if img_url and 'empty-poster' in img_url:
+                    print(f"Found empty-poster placeholder for {title}. Skipping image download for this item.")
+                    # Clean the description but skip image processing
+                    item_id = item.find('guid').text
+                    cleaned_descriptions[item_id] = clean_description(description)
+                    continue # Skip to the next item in the loop
 
-                # 3. If we have ANY img_url (scraped or RSS), process it
+                # 3. If we have a GOOD img_url (scraped or RSS), process it
                 if img_url:
                     # Get base filename
                     base_filename = sanitize_filename(title)
@@ -272,12 +275,9 @@ def download_rss():
                         pass # Keep original URL for list entries
                     else:
                         # For movie entries, get the highest resolution possible
-                        # This works on BOTH default and 'alternative-poster' URLs
                         print("Applying high-resolution replacement...")
                         # Use regex to replace any size pattern with -0-2000-
-                        # e.g., -0-150-0-225-crop
                         img_url = re.sub(r'-0-\d+-0-\d+(-crop)?', '-0-2000-0-3000-crop', img_url)
-                        # e.g., -0-600-
                         img_url = re.sub(r'-0-\d+-', '-0-2000-', img_url)
                         print(f"Upgraded URL: {img_url}")
                     
@@ -324,7 +324,7 @@ def download_rss():
                 continue
             
             # Convert element to string
-            child_str = ET.tring(child, encoding='unicode')
+            child_str = ET.tostring(child, encoding='unicode')
             xml_lines.append(f"    {child_str}")
         
         # Add items with cleaned descriptions
