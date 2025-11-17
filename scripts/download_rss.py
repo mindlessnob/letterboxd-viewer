@@ -214,7 +214,7 @@ def download_rss():
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v3) ---
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v4) ---
                 img_url = None
                 review_link_elem = item.find('link')
                 review_link = review_link_elem.text if review_link_elem is not None else None
@@ -237,19 +237,27 @@ def download_rss():
                             page_response.raise_for_status()
                             page_soup = BeautifulSoup(page_response.content, 'html.parser')
                             
-                            # --- NEW METHOD: Find the og:image meta tag ---
-                            og_image_tag = page_soup.find('meta', property='og:image')
+                            # --- NEW METHOD (v4): Find the poster via specific CSS selector ---
+                            # This looks for an <img> inside a <div class="film-poster">
+                            # which is itself inside a <div data-component-class="LazyPoster">
+                            # This is based on the HTML snippet you provided.
+                            img_tag = page_soup.select_one('div[data-component-class="LazyPoster"] div.film-poster img')
                             
-                            if og_image_tag and og_image_tag.get('content'):
-                                img_url = og_image_tag['content']
-                                print(f"Found poster via og:image meta tag: {img_url}")
+                            if img_tag and img_tag.get('src'):
+                                img_url = img_tag['src']
+                                # Check if it's the empty poster and ignore it
+                                if 'empty-poster' in img_url:
+                                    print("Found empty-poster placeholder via CSS. Falling back to RSS.")
+                                    img_url = None # Reset img_url so we fall back
+                                else:
+                                    print(f"Found poster via CSS Selector: {img_url}")
                             else:
-                                print("og:image meta tag not found. Falling back to RSS feed.")
+                                print("CSS selector did not find poster. Falling back to RSS.")
                                 
                     except Exception as e:
                         print(f"Scraping failed for {review_link}: {e}. Falling back to RSS.")
                 
-                # 2. If scraping failed or it's not a film, fall back to the RSS description
+                # 2. If scraping failed, fall back to the RSS description
                 if not img_url:
                     print("Falling back to RSS description for image.")
                     img_match = re.search(r'src="([^"]+)"', description)
@@ -327,7 +335,7 @@ def download_rss():
             child_str = ET.tostring(child, encoding='unicode')
             xml_lines.append(f"    {child_str}")
         
-        # Add items with cleaned descriptions
+        # Add items with
         for item in tree.findall('.//item'):
             item_id_elem = item.find('guid')
             if item_id_elem is None:
