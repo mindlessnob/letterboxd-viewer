@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import shutil
 import re
+import json
 from bs4 import BeautifulSoup
 
 # Set stdout encoding to UTF-8
@@ -214,7 +215,7 @@ def download_rss():
                 description = description_elem.text
                 title = item.find('title').text
                 
-                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v4) ---
+                # --- NEW CUSTOM POSTER SCRAPING LOGIC (v5) ---
                 img_url = None
                 review_link_elem = item.find('link')
                 review_link = review_link_elem.text if review_link_elem is not None else None
@@ -237,22 +238,21 @@ def download_rss():
                             page_response.raise_for_status()
                             page_soup = BeautifulSoup(page_response.content, 'html.parser')
                             
-                            # --- NEW METHOD (v4): Find the poster via specific CSS selector ---
-                            # This looks for an <img> inside a <div class="film-poster">
-                            # which is itself inside a <div data-component-class="LazyPoster">
-                            # This is based on the HTML snippet you provided.
-                            img_tag = page_soup.select_one('div[data-component-class="LazyPoster"] div.film-poster img')
+                            # --- NEW METHOD (v5): Find the <script type="application/ld+json"> tag ---
+                            json_script_tag = page_soup.find('script', type='application/ld+json')
                             
-                            if img_tag and img_tag.get('src'):
-                                img_url = img_tag['src']
-                                # Check if it's the empty poster and ignore it
-                                if 'empty-poster' in img_url:
-                                    print("Found empty-poster placeholder via CSS. Falling back to RSS.")
-                                    img_url = None # Reset img_url so we fall back
+                            if json_script_tag:
+                                json_data = json.loads(json_script_tag.string)
+                                if json_data and json_data.get('image'):
+                                    img_url = json_data['image']
+                                    if 'alternative-poster' in img_url:
+                                        print(f"Found alternative-poster via JSON-LD: {img_url}")
+                                    else:
+                                        print(f"Found default poster via JSON-LD: {img_url}")
                                 else:
-                                    print(f"Found poster via CSS Selector: {img_url}")
+                                    print("JSON-LD found, but no 'image' key. Falling back to RSS.")
                             else:
-                                print("CSS selector did not find poster. Falling back to RSS.")
+                                print("No JSON-LD script tag found. Falling back to RSS.")
                                 
                     except Exception as e:
                         print(f"Scraping failed for {review_link}: {e}. Falling back to RSS.")
