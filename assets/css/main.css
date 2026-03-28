@@ -1640,6 +1640,10 @@ input, select, textarea {
 			color: inherit;
 		}
 
+/* --- 1. Card & Grid Polish (.thumb articles) --- */
+
+/* Give every card a unified rounded shape and clip overflow
+   so the image corners match the card corners. */
 #main .thumb {
 	border-radius: 8px;
 	overflow: hidden;
@@ -1853,7 +1857,7 @@ input, select, textarea {
 		text-align: left !important;
 		background: transparent !important;
 		padding: 0 18px 28px !important;
-		overflow-y: auto !important;
+		overflow-y: scroll !important;
 		overflow-x: hidden !important;
 		-webkit-overflow-scrolling: touch !important;
 		overscroll-behavior: contain !important;
