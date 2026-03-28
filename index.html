@@ -209,7 +209,7 @@
 			<script src="assets/js/util.js"></script>
 			<script src="assets/js/main.js"></script>
 			<script>
-				// Function to format the title with line breaks
+				// Function to format the title with semantic span wrappers
 				function formatTitle(title) {
 					// Pattern matches: film title, year, and optional rating
 					const pattern = /^(.*?),\s*(\d{4})(?:\s*-\s*(.+))?$/;
@@ -217,10 +217,10 @@
 					
 					if (match) {
 						const [_, filmTitle, year, rating] = match;
-						let formatted = filmTitle;
-						formatted += '<br>' + year;
+						let formatted = `<span class="title-text">${filmTitle}</span>`;
+						formatted += `<span class="year">${year}</span>`;
 						if (rating) {
-							formatted += '<br>' + rating;
+							formatted += `<span class="rating">${rating}</span>`;
 						}
 						return formatted;
 					}
@@ -323,13 +323,10 @@
 						$('#main').poptrox({
 							baseZIndex: 20000,
 							caption: function($a) {
-								// Debug: Show the article being processed
 								var $article = $a.closest('.thumb');
-								console.log("Article for caption:", $article);
-								console.log("Description content:", $article.find('.description-content').html());
-								
-								var captionHtml = '<div class="caption-content">' + 
-									$article.find('h2').html() + 
+								// Wrap in <h2> so .caption-content h2 CSS selectors apply
+								var captionHtml = '<div class="caption-content">' +
+									'<h2>' + $article.find('h2').html() + '</h2>' +
 									'<div class="review-text">' + $article.find('.description-content').html() + '</div>' +
 									'</div>';
 								return captionHtml;
@@ -381,7 +378,32 @@
 								}
 								.caption-content h2 {
 									margin-top: 0 !important;
-									color: #fff !important;
+									text-transform: none !important;
+									line-height: 1.3 !important;
+									font-size: 1em !important;
+								}
+								.caption-content h2 .title-text {
+									display: block !important;
+									color: #f4f4f0 !important;
+									font-weight: 700 !important;
+									font-size: 1.05em !important;
+									letter-spacing: 0.03em !important;
+								}
+								.caption-content h2 .year {
+									display: block !important;
+									color: rgba(255, 255, 255, 0.55) !important;
+									font-size: 0.85em !important;
+									font-weight: 400 !important;
+									letter-spacing: 0.1em !important;
+									margin-top: 0.2em !important;
+								}
+								.caption-content h2 .rating {
+									display: block !important;
+									color: #00e054 !important;
+									font-size: 1.1em !important;
+									font-weight: 600 !important;
+									letter-spacing: 0.05em !important;
+									margin-top: 0.3em !important;
 								}
 								.caption-content p {
 									margin-bottom: 0 !important;
