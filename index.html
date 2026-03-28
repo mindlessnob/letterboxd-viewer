@@ -10,7 +10,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/png" href="https://michaellamb.dev/img/favicon.png" />
-		<link rel="stylesheet" href="assets/css/main.css?v=3" />
+		<link rel="stylesheet" href="assets/css/main.css" />
 		<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
 		<style>
 			.toast-container {
@@ -335,10 +335,15 @@
 							onPopupClose: function() {
 								$('body').removeClass('modal-active');
 								$('body').css('overflow', '');
+								$(document).off('touchmove.popupCaption');
 							},
 							onPopupOpen: function() {
 								$('body').addClass('modal-active');
 								$('body').css('overflow', 'hidden');
+								// iOS fix: stop touchmove bubbling to Poptrox overlay so .caption can scroll
+								$(document).on('touchmove.popupCaption', '.poptrox-popup .caption', function(e) {
+									e.stopPropagation();
+								});
 							},
 							overlayOpacity: 0.8,
 							popupCloserText: '',
