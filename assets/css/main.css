@@ -1640,14 +1640,6 @@ input, select, textarea {
 			color: inherit;
 		}
 
-/* =============================================================
-   Premium UI Overrides — Cinematic / Modern Design Polish
-   ============================================================= */
-
-/* --- 1. Card & Grid Polish (.thumb articles) --- */
-
-/* Give every card a unified rounded shape and clip overflow
-   so the image corners match the card corners. */
 #main .thumb {
 	border-radius: 8px;
 	overflow: hidden;
@@ -1720,9 +1712,9 @@ input, select, textarea {
 #main .thumb h2 .rating {
 	display: block;
 	color: #00e054;
-	font-size: 1.05em;
+	font-size: 1.45em;
 	font-weight: 600;
-	letter-spacing: 0.04em;
+	letter-spacing: 0.06em;
 	margin-top: 0.25em;
 }
 
@@ -1798,3 +1790,150 @@ input, select, textarea {
 		border-radius: 0;
 	}
 }
+
+/* --- 5. Mobile Popup Fix ---
+   Poptrox calculates `left` and `top` inline via JS based on popupWidth=600.
+   We override ALL positioning with !important so CSS wins over inline styles,
+   then use transform to properly center the popup on small screens. */
+
+@media screen and (max-width: 736px) {
+
+	/* ── Popup: centered card, flex column ── */
+	/* Use body .poptrox-popup (higher specificity) to beat the injected style's !important */
+	body .poptrox-popup {
+		position: fixed !important;
+		left: 50% !important;
+		top: 50% !important;
+		transform: translate(-50%, -50%) !important;
+		-webkit-transform: translate(-50%, -50%) !important;
+		width: calc(100vw - 32px) !important;
+		max-width: 400px !important;
+		max-height: 85vh !important;
+		overflow: hidden !important;
+		border-radius: 14px !important;
+		box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85) !important;
+		display: flex !important;
+		flex-direction: column !important;
+		background: rgba(5, 5, 7, 0.97) !important;  /* one unified black — matches review area */
+	}
+
+	/* ── Poster: compact, centered, recognisable ── */
+	.poptrox-popup .pic {
+		flex-shrink: 0 !important;
+		width: 100% !important;
+		max-height: 22vh !important;
+		overflow: hidden !important;
+		padding: 16px 16px 10px !important;
+		display: flex !important;
+		justify-content: center !important;
+		align-items: flex-start !important;
+		box-sizing: border-box !important;
+	}
+
+	.poptrox-popup .pic img {
+		max-height: 20vh !important;
+		width: auto !important;
+		max-width: 120px !important;  /* keep it a real poster shape, not stretched */
+		object-fit: contain !important;
+		border-radius: 6px !important;
+		display: block !important;
+		box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6) !important;
+	}
+
+	/* ── Caption: fills the rest, scrollable ── */
+	.poptrox-popup .caption {
+		flex: 1 1 auto !important;
+		min-height: 0 !important;
+		display: block !important;
+		position: relative !important;
+		bottom: auto !important;
+		left: auto !important;
+		top: auto !important;
+		width: 100% !important;
+		text-align: left !important;
+		background: transparent !important;
+		padding: 0 18px 28px !important;
+		overflow-y: auto !important;
+		overflow-x: hidden !important;
+		-webkit-overflow-scrolling: touch !important;
+		overscroll-behavior: contain !important;
+		touch-action: pan-y !important;
+		box-sizing: border-box !important;
+	}
+
+	/* ── Kill the inner dark "review box" – one unified surface ── */
+	.caption-content {
+		background: transparent !important;
+		padding: 0 !important;
+		border-radius: 0 !important;
+		box-shadow: none !important;
+	}
+
+	/* ── Meta section: title, year, stars ── */
+	.caption-content h2 {
+		margin: 0 0 0.5em !important;
+		padding-bottom: 0.65em !important;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.09) !important;
+		text-transform: none !important;
+		line-height: 1 !important;
+	}
+
+	.caption-content h2 .title-text {
+		display: block !important;
+		font-size: 1.1em !important;
+		font-weight: 700 !important;
+		color: #f4f4f0 !important;
+		line-height: 1.25 !important;
+		margin-bottom: 0.2em !important;
+	}
+
+	.caption-content h2 .year {
+		display: block !important;
+		font-size: 0.75em !important;
+		color: rgba(255, 255, 255, 0.45) !important;
+		letter-spacing: 0.13em !important;
+		margin-bottom: 0.3em !important;
+	}
+
+	.caption-content h2 .rating {
+		display: block !important;
+		font-size: 1.25em !important;
+		color: #00e054 !important;
+		letter-spacing: 0.06em !important;
+	}
+
+	/* ── Review text ── */
+	.review-text {
+		margin-top: 0.1em;
+		color: rgba(255, 255, 255, 0.75);
+		line-height: 1.68;
+		font-size: 0.88em;
+	}
+
+	/* ── Close button ── */
+	.poptrox-popup .closer {
+		display: block !important;
+		position: absolute !important;
+		opacity: 0.9 !important;
+		background-size: 26px !important;
+		background-color: rgba(10, 10, 10, 0.7) !important;
+		border-radius: 50% !important;
+		width: 34px !important;
+		height: 34px !important;
+		top: 10px !important;
+		right: 10px !important;
+		z-index: 200 !important;
+	}
+
+	/* ── Nav: hidden ── */
+	.poptrox-popup .nav-previous,
+	.poptrox-popup .nav-next {
+		display: none !important;
+	}
+
+	.poptrox-popup:before {
+		display: none !important;
+	}
+
+}
+
