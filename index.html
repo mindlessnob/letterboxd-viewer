@@ -10,7 +10,7 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<link rel="icon" type="image/png" href="https://michaellamb.dev/img/favicon.png" />
-		<link rel="stylesheet" href="assets/css/main.css?v=2" />
+		<link rel="stylesheet" href="assets/css/main.css?v=3" />
 		<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
 		<style>
 			.toast-container {
@@ -332,14 +332,20 @@
 								return captionHtml;
 							},
 							fadeSpeed: 300,
-							onPopupClose: function() { $('body').removeClass('modal-active'); },
-							onPopupOpen: function() { $('body').addClass('modal-active'); },
+							onPopupClose: function() {
+								$('body').removeClass('modal-active');
+								$('body').css('overflow', '');
+							},
+							onPopupOpen: function() {
+								$('body').addClass('modal-active');
+								$('body').css('overflow', 'hidden');
+							},
 							overlayOpacity: 0.8,
 							popupCloserText: '',
 							popupHeight: 'auto',
 							popupLoaderText: '',
 							popupSpeed: 300,
-							popupWidth: 600,
+							popupWidth: Math.min(600, window.innerWidth - 32),
 							selector: '.thumb > a.image',
 							usePopupCaption: true,
 							usePopupCloser: true,
@@ -347,7 +353,7 @@
 							usePopupForceClose: true,
 							usePopupLoader: true,
 							usePopupNav: true,
-							windowMargin: 50
+							windowMargin: window.innerWidth <= 736 ? 16 : 50
 						});
 						
 						// Add minimal CSS for better readability
@@ -400,9 +406,9 @@
 								.caption-content h2 .rating {
 									display: block !important;
 									color: #00e054 !important;
-									font-size: 1.1em !important;
+									font-size: 1.45em !important;
 									font-weight: 600 !important;
-									letter-spacing: 0.05em !important;
+									letter-spacing: 0.06em !important;
 									margin-top: 0.3em !important;
 								}
 								.caption-content p {
@@ -412,11 +418,13 @@
 								.poptrox-popup .closer {
 									top: 10px !important;
 									right: 10px !important;
-									width: 30px !important;
-									height: 30px !important;
-									color: #fff !important;
-									background: rgba(0, 0, 0, 0.5) !important;
+									width: 38px !important;
+									height: 38px !important;
+									background-color: rgba(10, 10, 10, 0.8) !important;
+									background-size: 28px !important;
 									border-radius: 50% !important;
+									opacity: 0.85 !important;
+									filter: none !important;
 								}
 							`)
 							.appendTo('head');
