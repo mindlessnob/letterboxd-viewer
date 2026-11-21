@@ -1,13 +1,17 @@
 (() => {
+	const PAGE_SIZE = 60;
+
 	const state = {
 		films: [],
 		lists: [],
 		recentReviews: [],
 		heroIndex: 0,
 		filter: 'all',
+		year: 'all',
 		sort: 'recent',
 		view: localStorage.getItem('diary_view') || 'grid',
 		query: '',
+		displayLimit: PAGE_SIZE,
 		visibleItems: [],
 		activeIndex: -1,
 		activeKind: 'film'
@@ -17,6 +21,7 @@
 		heroSection: document.getElementById('heroSection'),
 		contentArea: document.getElementById('contentArea'),
 		filterPills: document.getElementById('filterPills'),
+		yearSelect: document.getElementById('yearSelect'),
 		sortSelect: document.getElementById('sortSelect'),
 		toolbarRight: document.getElementById('toolbarRight'),
 		viewToggle: document.getElementById('viewToggle'),
@@ -240,6 +245,10 @@
 			if (state.filter === 'liked' && !f.liked) return false;
 			if (state.filter === 'top' && (f.rating || 0) < 4) return false;
 			if (state.filter === 'rewatch' && !f.rewatch) return false;
+			if (state.year !== 'all') {
+				const watchedYear = (f.watchedDate || '').slice(0, 4);
+				if (watchedYear !== state.year) return false;
+			}
 			if (q) {
 				const hay = `${f.title} ${f.year || ''} ${f.plainText}`.toLowerCase();
 				if (!hay.includes(q)) return false;
@@ -329,10 +338,19 @@
 			return;
 		}
 
+		const slice = films.slice(0, state.displayLimit);
+		const hasMore = slice.length < films.length;
+		const loadMoreHtml = hasMore
+			? `<div class="load-more-wrap">
+					<button type="button" class="btn-ghost" id="loadMoreBtn" style="padding: 0.62rem 1.45rem; font-size: 0.82rem;">Load more films</button>
+					<span class="load-more-meta">Showing ${slice.length.toLocaleString()} of ${films.length.toLocaleString()} films</span>
+				</div>`
+			: '';
+
 		if (state.view === 'diary') {
 			const groups = new Map();
-			films.forEach((f, idx) => {
-				const key = state.sort === 'recent' ? formatMonthGroup(f.watchedDate) : 'All Matching Films';
+			slice.forEach((f, idx) => {
+				const key = state.sort === 'recent' ? formatMonthGroup(f.watchedDate) : 'Matching Films';
 				if (!groups.has(key)) groups.set(key, []);
 				groups.get(key).push({ film: f, idx });
 			});
@@ -353,13 +371,16 @@
 								? `<p class="diary-snippet is-spoiler">Review contains spoilers — open to read.</p>`
 								: `<p class="diary-snippet">${escapeHtml(f.plainText)}</p>`)
 							: '';
+						const thumbHtml = f.thumb
+							? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" class="diary-thumb" loading="lazy" />`
+							: `<div class="diary-thumb-typo" aria-hidden="true">${escapeHtml((f.title || '?')[0])}</div>`;
 						return `
 							<article class="diary-row" data-idx="${idx}" tabindex="0">
 								<div class="diary-day">
 									<span class="diary-day-num">${dayNum}</span>
 									<span class="diary-day-mon">${dayMon}</span>
 								</div>
-								<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" class="diary-thumb" loading="lazy" />
+								${thumbHtml}
 								<div class="diary-main">
 									<div class="diary-title-line">
 										<h4 class="diary-title">${escapeHtml(f.title)}</h4>
@@ -379,17 +400,28 @@
 					}).join('')}
 				</section>`;
 			}
-			html += '</div>';
+			html += '</div>' + loadMoreHtml;
 			els.contentArea.innerHTML = html;
 			bindCardClicks('.diary-row', 'film');
+			document.getElementById('loadMoreBtn')?.addEventListener('click', () => {
+				state.displayLimit += PAGE_SIZE;
+				renderContent();
+			});
 			return;
 		}
 
 		// Poster Grid View
-		els.contentArea.innerHTML = `<div class="film-grid">${films.map((f, i) => `
+		els.contentArea.innerHTML = `<div class="film-grid">${slice.map((f, i) => `
 			<article class="film-card" data-idx="${i}" tabindex="0" aria-label="${escapeHtml(f.title)}">
 				<div class="poster-frame">
-					<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" loading="lazy" />
+					${f.thumb
+						? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" loading="lazy" />`
+						: `<div class="poster-typographic">
+								<span class="poster-typo-year">${f.year || 'FILM'}</span>
+								<span class="poster-typo-title">${escapeHtml(f.title)}</span>
+								<span class="poster-typo-foot">${f.stars || 'LOGGED'}</span>
+							</div>`
+					}
 					<div class="poster-badges">
 						${f.isReview ? '<span class="badge badge-review" title="Written review">Review</span>' : ''}
 						${f.hasSpoilers ? '<span class="badge badge-spoiler" title="Contains spoilers">Spoiler</span>' : ''}
@@ -411,9 +443,13 @@
 					</div>
 				</div>
 			</article>
-		`).join('')}</div>`;
+		`).join('')}</div>${loadMoreHtml}`;
 
 		bindCardClicks('.film-card', 'film');
+		document.getElementById('loadMoreBtn')?.addEventListener('click', () => {
+			state.displayLimit += PAGE_SIZE;
+			renderContent();
+		});
 	}
 
 	// ── Split-Screen Reader Modal + URL Hash ──
@@ -439,9 +475,21 @@
 			els.readerModal.classList.remove('is-list-modal');
 			els.readerAside.style.display = '';
 			els.shareCardBtn.style.display = '';
-			els.readerPoster.src = item.full;
-			els.readerPoster.alt = `${item.title} poster`;
-			els.readerPoster.onerror = () => { els.readerPoster.src = item.thumb; };
+			if (item.full || item.thumb) {
+				els.readerPoster.style.display = '';
+				els.readerPoster.src = item.full || item.thumb;
+				els.readerPoster.alt = `${item.title} poster`;
+				els.readerPoster.onerror = () => {
+					if (item.thumb && els.readerPoster.src !== item.thumb) {
+						els.readerPoster.src = item.thumb;
+					} else {
+						els.readerPoster.style.display = 'none';
+					}
+				};
+			} else {
+				els.readerPoster.style.display = 'none';
+				els.readerPoster.removeAttribute('src');
+			}
 
 			els.readerFacts.innerHTML = `
 				<div class="fact-row"><span class="fact-label">Watched</span><span>${escapeHtml(formatFullDate(item.watchedDate) || '—')}</span></div>
@@ -528,6 +576,7 @@
 		els.filterPills.querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
 		pill.classList.add('active');
 		state.filter = pill.dataset.filter;
+		state.displayLimit = PAGE_SIZE;
 		renderContent();
 	});
 
@@ -539,21 +588,32 @@
 		renderContent();
 	});
 
+	els.yearSelect?.addEventListener('change', () => {
+		state.year = els.yearSelect.value;
+		state.displayLimit = PAGE_SIZE;
+		renderContent();
+	});
+
 	els.sortSelect.addEventListener('change', () => {
 		state.sort = els.sortSelect.value;
+		state.displayLimit = PAGE_SIZE;
 		renderContent();
 	});
 
 	els.searchInput.addEventListener('input', () => {
 		state.query = els.searchInput.value;
+		state.displayLimit = PAGE_SIZE;
 		renderContent();
 	});
 
 	document.getElementById('brandHome').addEventListener('click', e => {
 		e.preventDefault();
 		state.filter = 'all';
+		state.year = 'all';
 		state.query = '';
+		state.displayLimit = PAGE_SIZE;
 		els.searchInput.value = '';
+		if (els.yearSelect) els.yearSelect.value = 'all';
 		els.filterPills.querySelectorAll('.pill').forEach(p => p.classList.toggle('active', p.dataset.filter === 'all'));
 		renderContent();
 		window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -739,6 +799,31 @@
 			ctx.lineWidth = 2;
 			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
 			ctx.stroke();
+		} else {
+			// Typographic archival poster sleeve fallback
+			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
+			ctx.fillStyle = palette.card;
+			ctx.fill();
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+
+			drawRoundedRect(ctx, posterX + 18, posterY + 18, posterW - 36, posterH - 36, 10);
+			ctx.stroke();
+
+			ctx.textAlign = 'center';
+			ctx.fillStyle = palette.muted;
+			ctx.font = '500 22px "JetBrains Mono", monospace';
+			ctx.fillText(String(film.year || 'FILM'), W / 2, posterY + 72);
+
+			ctx.fillStyle = palette.ink;
+			ctx.font = '500 38px "Newsreader", Georgia, serif';
+			const sleeveLines = wrapCanvasText(ctx, film.title, posterW - 72, 4);
+			let sy = posterY + posterH / 2 - ((sleeveLines.length - 1) * 24);
+			for (const sl of sleeveLines) {
+				ctx.fillText(sl, W / 2, sy);
+				sy += 48;
+			}
 		}
 
 		// Film Title & Year
@@ -906,6 +991,13 @@
 	});
 
 	// ── Data Hydration ──
+	function populateYears() {
+		if (!els.yearSelect) return;
+		const years = Array.from(new Set(state.films.map(f => (f.watchedDate || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y))))
+			.sort((a, b) => b.localeCompare(a));
+		els.yearSelect.innerHTML = `<option value="all">All Years</option>` + years.map(y => `<option value="${y}">${y}</option>`).join('');
+	}
+
 	function hydrate(data) {
 		state.films = (data.films || []).map((f, i) => ({
 			...f,
@@ -914,6 +1006,7 @@
 		}));
 		state.lists = data.lists || [];
 		state.recentReviews = state.films.filter(f => f.isReview).slice(0, 5);
+		populateYears();
 		updateCounts();
 		renderContent();
 		openFromHash();

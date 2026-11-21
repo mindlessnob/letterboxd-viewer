@@ -1,9 +1,10 @@
 # Local config file with sensitive data
 config.json
 
-# Raw RSS XML files (keep only sanitized archive.json / archive.js in repo)
+# Raw RSS XML files & personal Letterboxd export zips
 data/*.xml
 data/*.xml.*
+*.zip
 
 # Python
 __pycache__/

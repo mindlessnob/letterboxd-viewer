@@ -316,6 +316,10 @@ def update_archive_json(tree, cleaned_descriptions=None):
             print(f'Warning: could not read existing archive.json: {e}')
 
     used_slugs = {f.get('slug') for f in existing_films.values() if f.get('slug')}
+    existing_by_triplet = {
+        (f.get('title', '').strip().lower(), f.get('year'), f.get('watchedDate', '')): fid
+        for fid, f in existing_films.items()
+    }
 
     items = tree.findall('.//item')
     for idx, item in enumerate(items):
@@ -374,7 +378,14 @@ def update_archive_json(tree, cleaned_descriptions=None):
         )
 
         img_base = sanitize_filename(raw_title).rstrip('-')
-        slug = existing_films.get(guid, {}).get('slug')
+        triplet = (film_title.strip().lower(), film_year, watched_date)
+        matched_old_id = existing_by_triplet.get(triplet)
+        if matched_old_id and matched_old_id != guid and matched_old_id in existing_films:
+            # Upgrade older CSV-imported entry in place without duplicating
+            old_entry = existing_films.pop(matched_old_id)
+            slug = old_entry.get('slug')
+        else:
+            slug = existing_films.get(guid, {}).get('slug')
         if not slug:
             candidate = make_url_slug(film_title, film_year)
             slug = candidate
@@ -424,12 +435,12 @@ def update_archive_json(tree, cleaned_descriptions=None):
         'lists': lists_sorted
     }
 
-    json_str = json.dumps(archive_data, indent=2, ensure_ascii=False)
+    json_str = json.dumps(archive_data, ensure_ascii=False, separators=(',', ':'))
     archive_path.write_text(json_str, encoding='utf-8')
 
     # Also write JS wrapper so index.html works seamlessly even when opened locally via file://
     archive_js_path = data_dir / 'archive.js'
-    archive_js_path.write_text(f'window.__DIARY_DATA__ = {json_str};\n', encoding='utf-8')
+    archive_js_path.write_text(f'window.__DIARY_DATA__={json_str};\n', encoding='utf-8')
     print(f'Successfully updated {archive_path} and {archive_js_path} ({len(films_sorted)} films, {len(lists_sorted)} lists)')
 
 
