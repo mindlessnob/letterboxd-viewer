@@ -1,5 +1,7 @@
 # Local config file with sensitive data
 config.json
+.env
+.env.*
 
 # Raw RSS XML files & personal Letterboxd export zips
 data/*.xml

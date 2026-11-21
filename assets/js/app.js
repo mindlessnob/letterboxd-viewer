@@ -676,7 +676,11 @@
 
 	function loadImage(src) {
 		return new Promise((resolve, reject) => {
+			if (!src) { reject(new Error('No src')); return; }
 			const img = new Image();
+			if (/^https?:\/\//i.test(src)) {
+				img.crossOrigin = 'anonymous';
+			}
 			img.onload = () => resolve(img);
 			img.onerror = reject;
 			img.src = src;
