@@ -131,13 +131,27 @@
 			</div>
 
 			<div class="share-controls">
-				<div class="view-toggle" id="shareFormatToggle" role="group" aria-label="Card aspect ratio">
-					<button type="button" class="view-btn active" data-format="card">4:5 Card</button>
-					<button type="button" class="view-btn" data-format="story">9:16 Story</button>
+				<div class="share-control-row">
+					<div class="view-toggle" id="shareStyleToggle" role="group" aria-label="Card design style">
+						<button type="button" class="view-btn active" data-style="editorial">Editorial</button>
+						<button type="button" class="view-btn" data-style="cinema">Cinema</button>
+						<button type="button" class="view-btn" data-style="minimal">Minimal</button>
+						<button type="button" class="view-btn" data-style="ticket">Ticket</button>
+					</div>
 				</div>
-				<div class="view-toggle" id="shareThemeToggle" role="group" aria-label="Card color theme">
-					<button type="button" class="view-btn active" data-card-theme="dark">Dark</button>
-					<button type="button" class="view-btn" data-card-theme="light">Light</button>
+				<div class="share-control-row">
+					<div class="view-toggle" id="shareFormatToggle" role="group" aria-label="Card aspect ratio">
+						<button type="button" class="view-btn active" data-format="card">4:5 Card</button>
+						<button type="button" class="view-btn" data-format="story">9:16 Story</button>
+					</div>
+					<div class="view-toggle" id="shareThemeToggle" role="group" aria-label="Card color theme">
+						<button type="button" class="view-btn active" data-card-theme="dark">Dark</button>
+						<button type="button" class="view-btn" data-card-theme="light">Light</button>
+					</div>
+					<label class="toggle-chip" id="shareReviewLabel">
+						<input type="checkbox" id="shareReviewToggle" checked />
+						<span>Review text</span>
+					</label>
 				</div>
 			</div>
 
@@ -154,8 +168,6 @@
 	<!-- Toasts -->
 	<div class="toast-stack" id="toastStack"></div>
 
-	<!-- Local archive fallback for file:// previews; HTTP/GitHub Pages fetches live data/archive.json -->
-	<script src="data/archive.js"></script>
-	<script src="assets/js/app.js"></script>
+	<script src="assets/js/app.js" defer></script>
 </body>
 </html>

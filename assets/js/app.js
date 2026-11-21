@@ -1,5 +1,5 @@
 (() => {
-	const PAGE_SIZE = 60;
+	const PAGE_SIZE = 36;
 
 	const state = {
 		films: [],
@@ -45,16 +45,21 @@
 		closeReaderBtn: document.getElementById('closeReaderBtn'),
 		shareBackdrop: document.getElementById('shareBackdrop'),
 		closeShareBtn: document.getElementById('closeShareBtn'),
+		shareStyleToggle: document.getElementById('shareStyleToggle'),
 		shareFormatToggle: document.getElementById('shareFormatToggle'),
 		shareThemeToggle: document.getElementById('shareThemeToggle'),
+		shareReviewToggle: document.getElementById('shareReviewToggle'),
+		shareReviewLabel: document.getElementById('shareReviewLabel'),
 		shareCanvas: document.getElementById('shareCanvas'),
 		downloadCardBtn: document.getElementById('downloadCardBtn'),
 		toastStack: document.getElementById('toastStack')
 	};
 
 	const shareState = {
-		format: 'card', // 'card' (1080x1350) | 'story' (1080x1920)
+		style: 'editorial', // 'editorial' | 'cinema' | 'minimal' | 'ticket'
+		format: 'card',     // 'card' (1080x1350) | 'story' (1080x1920)
 		theme: document.documentElement.getAttribute('data-theme') || 'dark',
+		includeReview: true,
 		film: null
 	};
 
@@ -249,10 +254,7 @@
 				const watchedYear = (f.watchedDate || '').slice(0, 4);
 				if (watchedYear !== state.year) return false;
 			}
-			if (q) {
-				const hay = `${f.title} ${f.year || ''} ${f.plainText}`.toLowerCase();
-				if (!hay.includes(q)) return false;
-			}
+			if (q && !f._search.includes(q)) return false;
 			return true;
 		});
 
@@ -372,7 +374,7 @@
 								: `<p class="diary-snippet">${escapeHtml(f.plainText)}</p>`)
 							: '';
 						const thumbHtml = f.thumb
-							? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" class="diary-thumb" loading="lazy" />`
+							? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" class="diary-thumb" loading="lazy" decoding="async" />`
 							: `<div class="diary-thumb-typo" aria-hidden="true">${escapeHtml((f.title || '?')[0])}</div>`;
 						return `
 							<article class="diary-row" data-idx="${idx}" tabindex="0">
@@ -415,7 +417,7 @@
 			<article class="film-card" data-idx="${i}" tabindex="0" aria-label="${escapeHtml(f.title)}">
 				<div class="poster-frame">
 					${f.thumb
-						? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" loading="lazy" />`
+						? `<img src="${escapeHtml(f.thumb)}" alt="${escapeHtml(f.title)} poster" loading="lazy" decoding="async" />`
 						: `<div class="poster-typographic">
 								<span class="poster-typo-year">${f.year || 'FILM'}</span>
 								<span class="poster-typo-title">${escapeHtml(f.title)}</span>
@@ -600,10 +602,14 @@
 		renderContent();
 	});
 
+	let searchTimer = null;
 	els.searchInput.addEventListener('input', () => {
-		state.query = els.searchInput.value;
-		state.displayLimit = PAGE_SIZE;
-		renderContent();
+		clearTimeout(searchTimer);
+		searchTimer = setTimeout(() => {
+			state.query = els.searchInput.value;
+			state.displayLimit = PAGE_SIZE;
+			renderContent();
+		}, 150);
 	});
 
 	document.getElementById('brandHome').addEventListener('click', e => {
@@ -687,6 +693,77 @@
 		});
 	}
 
+	function drawPosterOrSleeve(ctx, posterImg, film, x, y, w, h, r, palette, isLight) {
+		if (posterImg) {
+			ctx.save();
+			ctx.shadowColor = isLight ? 'rgba(23,22,20,0.22)' : 'rgba(0,0,0,0.65)';
+			ctx.shadowBlur = 46;
+			ctx.shadowOffsetY = 20;
+			drawRoundedRect(ctx, x, y, w, h, r);
+			ctx.fillStyle = palette.card;
+			ctx.fill();
+			ctx.restore();
+
+			ctx.save();
+			drawRoundedRect(ctx, x, y, w, h, r);
+			ctx.clip();
+			ctx.drawImage(posterImg, x, y, w, h);
+			ctx.restore();
+
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 2;
+			drawRoundedRect(ctx, x, y, w, h, r);
+			ctx.stroke();
+		} else {
+			drawRoundedRect(ctx, x, y, w, h, r);
+			ctx.fillStyle = palette.card;
+			ctx.fill();
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+
+			drawRoundedRect(ctx, x + 16, y + 16, w - 32, h - 32, Math.max(4, r - 6));
+			ctx.stroke();
+
+			ctx.textAlign = 'center';
+			ctx.fillStyle = palette.muted;
+			ctx.font = '500 22px "JetBrains Mono", monospace';
+			ctx.fillText(String(film.year || 'FILM'), x + w / 2, y + 68);
+
+			ctx.fillStyle = palette.ink;
+			ctx.font = '500 36px "Newsreader", Georgia, serif';
+			const sleeveLines = wrapCanvasText(ctx, film.title, w - 64, 4);
+			let sy = y + h / 2 - ((sleeveLines.length - 1) * 22);
+			for (const sl of sleeveLines) {
+				ctx.fillText(sl, x + w / 2, sy);
+				sy += 46;
+			}
+		}
+	}
+
+	function drawCenteredMetaRow(ctx, film, cx, y, palette) {
+		const metaParts = [];
+		if (film.year) metaParts.push({ text: String(film.year), color: palette.muted, font: '400 28px "JetBrains Mono", monospace' });
+		if (film.stars) metaParts.push({ text: film.stars, color: palette.green, font: '600 38px "Plus Jakarta Sans", sans-serif' });
+		if (film.liked) metaParts.push({ text: '♥', color: palette.coral, font: '600 34px "Plus Jakarta Sans", sans-serif' });
+		if (film.rewatch) metaParts.push({ text: '↻', color: palette.muted, font: '500 30px "Plus Jakarta Sans", sans-serif' });
+		if (!metaParts.length) return false;
+
+		const gap = 24;
+		const widths = metaParts.map(p => { ctx.font = p.font; return ctx.measureText(p.text).width; });
+		const totalW = widths.reduce((a, b) => a + b, 0) + gap * (metaParts.length - 1);
+		let mx = cx - totalW / 2;
+		ctx.textAlign = 'left';
+		ctx.textBaseline = 'middle';
+		metaParts.forEach((p, idx) => {
+			ctx.font = p.font;
+			ctx.fillStyle = p.color;
+			ctx.fillText(p.text, mx, y);
+			mx += widths[idx] + gap;
+		});
+		return true;
+	}
+
 	async function renderShareCard() {
 		const film = shareState.film;
 		if (!film) return;
@@ -696,6 +773,8 @@
 		}
 
 		const isStory = shareState.format === 'story';
+		const style = shareState.style;
+		const showReview = Boolean(shareState.includeReview && film.isReview && !film.hasSpoilers && film.plainText);
 		const W = 1080;
 		const H = isStory ? 1920 : 1350;
 		const canvas = els.shareCanvas;
@@ -732,45 +811,7 @@
 				glow: 'rgba(212, 168, 83, 0.13)'
 			};
 
-		// Background
-		const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
-		bgGrad.addColorStop(0, palette.bg);
-		bgGrad.addColorStop(1, palette.bg2);
-		ctx.fillStyle = bgGrad;
-		ctx.fillRect(0, 0, W, H);
-
-		// Subtle warm editorial glow
-		const rad = ctx.createRadialGradient(W * 0.5, isStory ? H * 0.28 : H * 0.25, 40, W * 0.5, isStory ? H * 0.28 : H * 0.25, 620);
-		rad.addColorStop(0, palette.glow);
-		rad.addColorStop(1, 'rgba(0,0,0,0)');
-		ctx.fillStyle = rad;
-		ctx.fillRect(0, 0, W, H);
-
-		// Editorial outer frame
-		const pad = 64;
-		ctx.strokeStyle = palette.border;
-		ctx.lineWidth = 2;
-		drawRoundedRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 24);
-		ctx.stroke();
-
-		// Top bar inside frame
-		const innerX = pad + 56;
-		const innerW = W - innerX * 2;
-		const topY = pad + 62;
-
-		ctx.fillStyle = palette.gold;
-		ctx.font = '500 22px "JetBrains Mono", monospace';
-		ctx.textBaseline = 'middle';
-		ctx.textAlign = 'left';
-		ctx.fillText(film.isReview ? 'FILM REVIEW' : 'SCREENING LOG', innerX, topY);
-
-		if (film.watchedDate) {
-			ctx.fillStyle = palette.muted;
-			ctx.textAlign = 'right';
-			ctx.fillText(formatFullDate(film.watchedDate).toUpperCase(), W - innerX, topY);
-		}
-
-		// Poster
+		// Load poster once
 		let posterImg = null;
 		try {
 			posterImg = await loadImage(film.full);
@@ -778,134 +819,375 @@
 			try { posterImg = await loadImage(film.thumb); } catch { /* ignore */ }
 		}
 
-		const posterW = isStory ? 460 : 340;
-		const posterH = Math.round(posterW * 1.5);
-		const posterX = Math.round((W - posterW) / 2);
-		const posterY = isStory ? topY + 78 : topY + 52;
+		ctx.textBaseline = 'middle';
 
-		if (posterImg) {
-			ctx.save();
-			ctx.shadowColor = isLight ? 'rgba(23,22,20,0.22)' : 'rgba(0,0,0,0.65)';
-			ctx.shadowBlur = 46;
-			ctx.shadowOffsetY = 20;
-			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
-			ctx.fillStyle = palette.card;
-			ctx.fill();
-			ctx.restore();
+		// ── STYLE 2: CINEMA (Blurred Ambient Backdrop) ──
+		if (style === 'cinema') {
+			ctx.fillStyle = isLight ? '#ece7dc' : '#08080a';
+			ctx.fillRect(0, 0, W, H);
 
-			ctx.save();
-			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
-			ctx.clip();
-			ctx.drawImage(posterImg, posterX, posterY, posterW, posterH);
-			ctx.restore();
+			if (posterImg) {
+				ctx.save();
+				ctx.filter = 'blur(52px) saturate(1.25)';
+				const scale = Math.max(W / posterImg.width, H / posterImg.height) * 1.15;
+				const bw = posterImg.width * scale;
+				const bh = posterImg.height * scale;
+				ctx.drawImage(posterImg, (W - bw) / 2, (H - bh) / 2, bw, bh);
+				ctx.restore();
+			}
 
-			ctx.strokeStyle = palette.border;
-			ctx.lineWidth = 2;
-			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
-			ctx.stroke();
-		} else {
-			// Typographic archival poster sleeve fallback
-			drawRoundedRect(ctx, posterX, posterY, posterW, posterH, 16);
-			ctx.fillStyle = palette.card;
-			ctx.fill();
-			ctx.strokeStyle = palette.border;
-			ctx.lineWidth = 2;
-			ctx.stroke();
+			// Moody vignette overlay
+			const vig = ctx.createLinearGradient(0, 0, 0, H);
+			if (isLight) {
+				vig.addColorStop(0, 'rgba(245, 242, 235, 0.72)');
+				vig.addColorStop(0.5, 'rgba(245, 242, 235, 0.80)');
+				vig.addColorStop(1, 'rgba(245, 242, 235, 0.94)');
+			} else {
+				vig.addColorStop(0, 'rgba(8, 8, 10, 0.62)');
+				vig.addColorStop(0.45, 'rgba(8, 8, 10, 0.74)');
+				vig.addColorStop(1, 'rgba(8, 8, 10, 0.94)');
+			}
+			ctx.fillStyle = vig;
+			ctx.fillRect(0, 0, W, H);
 
-			drawRoundedRect(ctx, posterX + 18, posterY + 18, posterW - 36, posterH - 36, 10);
-			ctx.stroke();
+			const posterW = showReview ? (isStory ? 440 : 330) : (isStory ? 560 : 460);
+			const posterH = Math.round(posterW * 1.5);
+			const posterX = Math.round((W - posterW) / 2);
+			const posterY = showReview ? (isStory ? 180 : 120) : (isStory ? 280 : 155);
+
+			drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 20, palette, isLight);
+
+			let cy = posterY + posterH + (isStory ? 84 : 64);
+			ctx.textAlign = 'center';
+			ctx.fillStyle = palette.ink;
+			ctx.font = `600 ${isStory ? 62 : 52}px "Newsreader", Georgia, serif`;
+			for (const line of wrapCanvasText(ctx, film.title, W - 180, 2)) {
+				ctx.fillText(line, W / 2, cy);
+				cy += isStory ? 72 : 60;
+			}
+
+			cy += 10;
+			drawCenteredMetaRow(ctx, film, W / 2, cy, palette);
+			cy += isStory ? 68 : 54;
+
+			if (showReview) {
+				const footerY = H - 105;
+				const fontSize = isStory ? 35 : 29;
+				const lh = isStory ? 54 : 45;
+				const maxLines = Math.max(2, Math.min(isStory ? 8 : 5, Math.floor((footerY - cy - 40) / lh)));
+				ctx.textAlign = 'center';
+				ctx.font = `400 ${fontSize}px "Newsreader", Georgia, serif`;
+				ctx.fillStyle = palette.secondary;
+				for (const line of wrapCanvasText(ctx, `“${film.plainText}”`, W - 200, maxLines)) {
+					ctx.fillText(line, W / 2, cy);
+					cy += lh;
+				}
+			} else if (film.watchedDate) {
+				ctx.textAlign = 'center';
+				ctx.font = '400 24px "JetBrains Mono", monospace';
+				ctx.fillStyle = palette.muted;
+				ctx.fillText(formatFullDate(film.watchedDate).toUpperCase(), W / 2, cy + 8);
+			}
 
 			ctx.textAlign = 'center';
 			ctx.fillStyle = palette.muted;
-			ctx.font = '500 22px "JetBrains Mono", monospace';
-			ctx.fillText(String(film.year || 'FILM'), W / 2, posterY + 72);
-
-			ctx.fillStyle = palette.ink;
-			ctx.font = '500 38px "Newsreader", Georgia, serif';
-			const sleeveLines = wrapCanvasText(ctx, film.title, posterW - 72, 4);
-			let sy = posterY + posterH / 2 - ((sleeveLines.length - 1) * 24);
-			for (const sl of sleeveLines) {
-				ctx.fillText(sl, W / 2, sy);
-				sy += 48;
-			}
+			ctx.font = '500 21px "JetBrains Mono", monospace';
+			ctx.fillText("MOON'S FILM DIARY", W / 2, H - 78);
+			return;
 		}
 
-		// Film Title & Year
+		// ── STYLE 3: MINIMAL (Gallery Print, Left-Aligned) ──
+		if (style === 'minimal') {
+			ctx.fillStyle = palette.bg;
+			ctx.fillRect(0, 0, W, H);
+
+			const padX = 96;
+			const innerW = W - padX * 2;
+			const topY = isStory ? 115 : 85;
+
+			const posterW = showReview ? (isStory ? 440 : 320) : (isStory ? 560 : 460);
+			const posterH = Math.round(posterW * 1.5);
+			const posterX = padX;
+			const posterY = topY;
+
+			drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 10, palette, isLight);
+
+			// Side metadata column next to poster
+			const sideX = posterX + posterW + 54;
+			const sideW = W - padX - sideX;
+			ctx.textAlign = 'left';
+			let sy = posterY + 24;
+
+			ctx.fillStyle = palette.gold;
+			ctx.font = '500 20px "JetBrains Mono", monospace';
+			ctx.fillText(film.isReview ? 'REVIEW' : 'DIARY', sideX, sy);
+			sy += 56;
+
+			if (film.watchedDate) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = '400 18px "JetBrains Mono", monospace';
+				ctx.fillText('WATCHED', sideX, sy);
+				sy += 32;
+				ctx.fillStyle = palette.ink;
+				ctx.font = '500 24px "Plus Jakarta Sans", sans-serif';
+				ctx.fillText(formatFullDate(film.watchedDate), sideX, sy);
+				sy += 56;
+			}
+
+			if (film.year) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = '400 18px "JetBrains Mono", monospace';
+				ctx.fillText('RELEASED', sideX, sy);
+				sy += 32;
+				ctx.fillStyle = palette.ink;
+				ctx.font = '500 24px "Plus Jakarta Sans", sans-serif';
+				ctx.fillText(String(film.year), sideX, sy);
+				sy += 56;
+			}
+
+			if (film.stars) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = '400 18px "JetBrains Mono", monospace';
+				ctx.fillText('RATING', sideX, sy);
+				sy += 36;
+				ctx.fillStyle = palette.green;
+				ctx.font = '600 36px "Plus Jakarta Sans", sans-serif';
+				ctx.fillText(film.stars + (film.liked ? '  ♥' : ''), sideX, sy);
+			}
+
+			// Title + optional review below poster
+			let cy = posterY + posterH + (isStory ? 84 : 62);
+			ctx.textAlign = 'left';
+			ctx.fillStyle = palette.ink;
+			ctx.font = `500 ${isStory ? 64 : 54}px "Newsreader", Georgia, serif`;
+			for (const line of wrapCanvasText(ctx, film.title, innerW, 2)) {
+				ctx.fillText(line, padX, cy);
+				cy += isStory ? 74 : 62;
+			}
+
+			const footerY = H - 86;
+			if (showReview) {
+				cy += 22;
+				ctx.strokeStyle = palette.border;
+				ctx.lineWidth = 2;
+				ctx.beginPath();
+				ctx.moveTo(padX, cy);
+				ctx.lineTo(W - padX, cy);
+				ctx.stroke();
+				cy += 52;
+
+				const fontSize = isStory ? 35 : 29;
+				const lh = isStory ? 54 : 45;
+				const maxLines = Math.max(2, Math.min(isStory ? 11 : 6, Math.floor((footerY - cy - 48) / lh)));
+				ctx.font = `400 ${fontSize}px "Newsreader", Georgia, serif`;
+				ctx.fillStyle = palette.secondary;
+				for (const line of wrapCanvasText(ctx, film.plainText, innerW, maxLines)) {
+					ctx.fillText(line, padX, cy);
+					cy += lh;
+				}
+			}
+
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(padX, footerY - 34);
+			ctx.lineTo(W - padX, footerY - 34);
+			ctx.stroke();
+
+			ctx.textAlign = 'left';
+			ctx.fillStyle = palette.muted;
+			ctx.font = '500 20px "JetBrains Mono", monospace';
+			ctx.fillText("MOON'S FILM DIARY", padX, footerY);
+			return;
+		}
+
+		// ── STYLE 4: TICKET (Vintage 35mm Cinema Stub) ──
+		if (style === 'ticket') {
+			ctx.fillStyle = isLight ? '#e8e2d5' : '#08080a';
+			ctx.fillRect(0, 0, W, H);
+
+			const pad = 76;
+			const tx = pad;
+			const ty = pad;
+			const tw = W - pad * 2;
+			const th = H - pad * 2;
+			const notchY = showReview ? (isStory ? Math.round(H * 0.56) : Math.round(H * 0.54)) : (isStory ? Math.round(H * 0.72) : Math.round(H * 0.72));
+			const notchR = 34;
+
+			// Ticket silhouette with semicircular side cutouts
+			ctx.save();
+			ctx.shadowColor = isLight ? 'rgba(23,22,20,0.16)' : 'rgba(0,0,0,0.6)';
+			ctx.shadowBlur = 40;
+			ctx.shadowOffsetY = 16;
+			ctx.beginPath();
+			ctx.moveTo(tx + 28, ty);
+			ctx.lineTo(tx + tw - 28, ty);
+			ctx.quadraticCurveTo(tx + tw, ty, tx + tw, ty + 28);
+			ctx.lineTo(tx + tw, notchY - notchR);
+			ctx.arc(tx + tw, notchY, notchR, -Math.PI / 2, Math.PI / 2, true);
+			ctx.lineTo(tx + tw, ty + th - 28);
+			ctx.quadraticCurveTo(tx + tw, ty + th, tx + tw - 28, ty + th);
+			ctx.lineTo(tx + 28, ty + th);
+			ctx.quadraticCurveTo(tx, ty + th, tx, ty + th - 28);
+			ctx.lineTo(tx, notchY + notchR);
+			ctx.arc(tx, notchY, notchR, Math.PI / 2, -Math.PI / 2, true);
+			ctx.lineTo(tx, ty + 28);
+			ctx.quadraticCurveTo(tx, ty, tx + 28, ty);
+			ctx.closePath();
+			ctx.fillStyle = palette.card;
+			ctx.fill();
+			ctx.restore();
+
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+
+			// Perforated dashed tear-line
+			ctx.save();
+			ctx.setLineDash([12, 12]);
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 2.5;
+			ctx.beginPath();
+			ctx.moveTo(tx + notchR + 18, notchY);
+			ctx.lineTo(tx + tw - notchR - 18, notchY);
+			ctx.stroke();
+			ctx.restore();
+
+			const innerX = tx + 56;
+			const innerW = tw - 112;
+
+			// Top stub header
+			ctx.fillStyle = palette.gold;
+			ctx.font = '500 21px "JetBrains Mono", monospace';
+			ctx.textAlign = 'left';
+			ctx.fillText('ADMIT ONE · SCREENING LOG', innerX, ty + 54);
+			if (film.watchedDate) {
+				ctx.fillStyle = palette.muted;
+				ctx.textAlign = 'right';
+				ctx.fillText(formatShortDate(film.watchedDate).toUpperCase(), tx + tw - 56, ty + 54);
+			}
+
+			// Poster inside top half
+			const topAvailH = notchY - (ty + 100) - 36;
+			const posterH = Math.min(topAvailH, showReview ? (isStory ? 680 : 480) : (isStory ? 840 : 620));
+			const posterW = Math.round(posterH * (2 / 3));
+			const posterX = Math.round((W - posterW) / 2);
+			const posterY = ty + 100 + Math.round((topAvailH - posterH) / 2);
+			drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 12, palette, isLight);
+
+			// Bottom stub: Title, rating, optional review
+			let cy = notchY + (isStory ? 86 : 68);
+			ctx.textAlign = 'center';
+			ctx.fillStyle = palette.ink;
+			ctx.font = `500 ${isStory ? 56 : 46}px "Newsreader", Georgia, serif`;
+			for (const line of wrapCanvasText(ctx, film.title, innerW, 2)) {
+				ctx.fillText(line, W / 2, cy);
+				cy += isStory ? 66 : 54;
+			}
+
+			cy += 8;
+			drawCenteredMetaRow(ctx, film, W / 2, cy, palette);
+			cy += isStory ? 64 : 48;
+
+			const stubFootY = ty + th - 58;
+			if (showReview) {
+				const fontSize = isStory ? 32 : 26;
+				const lh = isStory ? 48 : 40;
+				const maxLines = Math.max(2, Math.min(isStory ? 8 : 5, Math.floor((stubFootY - cy - 36) / lh)));
+				ctx.textAlign = 'center';
+				ctx.font = `400 ${fontSize}px "Newsreader", Georgia, serif`;
+				ctx.fillStyle = palette.secondary;
+				for (const line of wrapCanvasText(ctx, `“${film.plainText}”`, innerW - 20, maxLines)) {
+					ctx.fillText(line, W / 2, cy);
+					cy += lh;
+				}
+			}
+
+			ctx.textAlign = 'center';
+			ctx.fillStyle = palette.muted;
+			ctx.font = '500 20px "JetBrains Mono", monospace';
+			ctx.fillText("MOON'S FILM DIARY", W / 2, stubFootY);
+			return;
+		}
+
+		// ── STYLE 1: EDITORIAL (Default Framed Criterion-Style Card) ──
+		const bgGrad = ctx.createLinearGradient(0, 0, 0, H);
+		bgGrad.addColorStop(0, palette.bg);
+		bgGrad.addColorStop(1, palette.bg2);
+		ctx.fillStyle = bgGrad;
+		ctx.fillRect(0, 0, W, H);
+
+		const rad = ctx.createRadialGradient(W * 0.5, isStory ? H * 0.28 : H * 0.25, 40, W * 0.5, isStory ? H * 0.28 : H * 0.25, 620);
+		rad.addColorStop(0, palette.glow);
+		rad.addColorStop(1, 'rgba(0,0,0,0)');
+		ctx.fillStyle = rad;
+		ctx.fillRect(0, 0, W, H);
+
+		const pad = 64;
+		ctx.strokeStyle = palette.border;
+		ctx.lineWidth = 2;
+		drawRoundedRect(ctx, pad, pad, W - pad * 2, H - pad * 2, 24);
+		ctx.stroke();
+
+		const innerX = pad + 56;
+		const innerW = W - innerX * 2;
+		const topY = pad + 62;
+
+		ctx.fillStyle = palette.gold;
+		ctx.font = '500 22px "JetBrains Mono", monospace';
+		ctx.textAlign = 'left';
+		ctx.fillText(showReview ? 'FILM REVIEW' : 'SCREENING LOG', innerX, topY);
+
+		if (film.watchedDate) {
+			ctx.fillStyle = palette.muted;
+			ctx.textAlign = 'right';
+			ctx.fillText(formatFullDate(film.watchedDate).toUpperCase(), W - innerX, topY);
+		}
+
+		const posterW = showReview ? (isStory ? 460 : 340) : (isStory ? 560 : 450);
+		const posterH = Math.round(posterW * 1.5);
+		const posterX = Math.round((W - posterW) / 2);
+		const posterY = showReview ? (isStory ? topY + 78 : topY + 52) : (isStory ? topY + 135 : topY + 75);
+
+		drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 16, palette, isLight);
+
 		let cursorY = posterY + posterH + (isStory ? 84 : 64);
 		ctx.textAlign = 'center';
 		ctx.fillStyle = palette.ink;
 		ctx.font = `500 ${isStory ? 62 : 52}px "Newsreader", Georgia, serif`;
-		const titleLines = wrapCanvasText(ctx, film.title, innerW, 2);
-		for (const line of titleLines) {
+		for (const line of wrapCanvasText(ctx, film.title, innerW, 2)) {
 			ctx.fillText(line, W / 2, cursorY);
 			cursorY += isStory ? 72 : 60;
 		}
 
-		// Year + Rating + Heart row
-		const metaParts = [];
-		if (film.year) metaParts.push({ text: String(film.year), color: palette.muted, font: '400 30px "JetBrains Mono", monospace' });
-		if (film.stars) metaParts.push({ text: film.stars, color: palette.green, font: '600 38px "Plus Jakarta Sans", sans-serif' });
-		if (film.liked) metaParts.push({ text: '♥', color: palette.coral, font: '600 34px "Plus Jakarta Sans", sans-serif' });
-		if (film.rewatch) metaParts.push({ text: '↻', color: palette.muted, font: '500 32px "Plus Jakarta Sans", sans-serif' });
-
-		if (metaParts.length) {
-			cursorY += 12;
-			const gap = 26;
-			const widths = metaParts.map(p => {
-				ctx.font = p.font;
-				return ctx.measureText(p.text).width;
-			});
-			const totalW = widths.reduce((a, b) => a + b, 0) + gap * (metaParts.length - 1);
-			let mx = (W - totalW) / 2;
-			ctx.textAlign = 'left';
-			metaParts.forEach((p, idx) => {
-				ctx.font = p.font;
-				ctx.fillStyle = p.color;
-				ctx.fillText(p.text, mx, cursorY);
-				mx += widths[idx] + gap;
-			});
+		cursorY += 12;
+		if (drawCenteredMetaRow(ctx, film, W / 2, cursorY, palette)) {
 			cursorY += isStory ? 68 : 52;
 		}
 
-		// Divider
-		ctx.strokeStyle = palette.border;
-		ctx.lineWidth = 1.5;
-		ctx.beginPath();
-		ctx.moveTo(W / 2 - 120, cursorY);
-		ctx.lineTo(W / 2 + 120, cursorY);
-		ctx.stroke();
-		cursorY += isStory ? 64 : 48;
-
-		// Review excerpt or diary log note
 		const footerTop = H - pad - 76;
-		const availableH = footerTop - cursorY - 24;
-		ctx.textAlign = 'center';
+		if (showReview) {
+			ctx.strokeStyle = palette.border;
+			ctx.lineWidth = 1.5;
+			ctx.beginPath();
+			ctx.moveTo(W / 2 - 120, cursorY);
+			ctx.lineTo(W / 2 + 120, cursorY);
+			ctx.stroke();
+			cursorY += isStory ? 64 : 48;
 
-		if (film.isReview && !film.hasSpoilers && film.plainText) {
+			const availableH = footerTop - cursorY - 24;
 			const fontSize = isStory ? 36 : 30;
 			const lineHeight = isStory ? 56 : 46;
 			const maxLines = Math.max(2, Math.min(isStory ? 9 : 5, Math.floor(availableH / lineHeight)));
+			ctx.textAlign = 'center';
 			ctx.font = `400 ${fontSize}px "Newsreader", Georgia, serif`;
 			ctx.fillStyle = palette.secondary;
-			const lines = wrapCanvasText(ctx, `“${film.plainText}”`, innerW - 24, maxLines);
-			for (const line of lines) {
+			for (const line of wrapCanvasText(ctx, `“${film.plainText}”`, innerW - 24, maxLines)) {
 				ctx.fillText(line, W / 2, cursorY);
 				cursorY += lineHeight;
 			}
-		} else {
-			ctx.font = `italic 400 ${isStory ? 34 : 28}px "Newsreader", Georgia, serif`;
-			ctx.fillStyle = palette.muted;
-			const note = film.hasSpoilers
-				? 'Review contains spoilers — read in full on the diary.'
-				: (film.watchedDate ? `Watched on ${formatFullDate(film.watchedDate)}.` : 'Logged in Moon’s Film Diary.');
-			const lines = wrapCanvasText(ctx, note, innerW - 40, 2);
-			for (const line of lines) {
-				ctx.fillText(line, W / 2, cursorY);
-				cursorY += 44;
-			}
 		}
 
-		// Footer colophon (strictly anonymous — no Letterboxd branding)
 		ctx.strokeStyle = palette.border;
 		ctx.lineWidth = 1.5;
 		ctx.beginPath();
@@ -921,8 +1203,22 @@
 
 	function openShareModal() {
 		if (state.activeKind !== 'film' || state.activeIndex < 0) return;
-		shareState.film = state.visibleItems[state.activeIndex];
+		const film = state.visibleItems[state.activeIndex];
+		shareState.film = film;
 		shareState.theme = document.documentElement.getAttribute('data-theme') || 'dark';
+		const canShowReview = Boolean(film.isReview && !film.hasSpoilers && film.plainText);
+		shareState.includeReview = canShowReview;
+
+		els.shareReviewToggle.checked = canShowReview;
+		els.shareReviewToggle.disabled = !canShowReview;
+		els.shareReviewLabel.classList.toggle('is-disabled', !canShowReview);
+		els.shareReviewLabel.title = canShowReview
+			? 'Include review quote on card'
+			: (film.hasSpoilers ? 'Hidden on card (contains spoilers)' : 'No written review for this entry');
+
+		els.shareStyleToggle.querySelectorAll('.view-btn').forEach(b => {
+			b.classList.toggle('active', b.dataset.style === shareState.style);
+		});
 		els.shareThemeToggle.querySelectorAll('.view-btn').forEach(b => {
 			b.classList.toggle('active', b.dataset.cardTheme === shareState.theme);
 		});
@@ -943,6 +1239,14 @@
 		if (e.target === els.shareBackdrop) closeShareModal();
 	});
 
+	els.shareStyleToggle.addEventListener('click', e => {
+		const btn = e.target.closest('.view-btn');
+		if (!btn) return;
+		shareState.style = btn.dataset.style;
+		els.shareStyleToggle.querySelectorAll('.view-btn').forEach(b => b.classList.toggle('active', b === btn));
+		renderShareCard();
+	});
+
 	els.shareFormatToggle.addEventListener('click', e => {
 		const btn = e.target.closest('.view-btn');
 		if (!btn) return;
@@ -959,13 +1263,18 @@
 		renderShareCard();
 	});
 
+	els.shareReviewToggle.addEventListener('change', () => {
+		shareState.includeReview = els.shareReviewToggle.checked;
+		renderShareCard();
+	});
+
 	els.downloadCardBtn.addEventListener('click', () => {
 		if (!shareState.film) return;
 		try {
 			const dataUrl = els.shareCanvas.toDataURL('image/png');
 			const a = document.createElement('a');
 			a.href = dataUrl;
-			a.download = `${shareState.film.slug || 'film'}-${shareState.format}.png`;
+			a.download = `${shareState.film.slug || 'film'}-${shareState.style}-${shareState.format}.png`;
 			a.click();
 			showToast('PNG card downloaded', 'success');
 		} catch (err) {
@@ -994,7 +1303,7 @@
 		}
 	});
 
-	// ── Data Hydration ──
+	// ── Data Hydration (single gzipped JSON fetch over HTTP; dynamic script fallback ONLY on file://) ──
 	function populateYears() {
 		if (!els.yearSelect) return;
 		const years = Array.from(new Set(state.films.map(f => (f.watchedDate || '').slice(0, 4)).filter(y => /^\d{4}$/.test(y))))
@@ -1006,7 +1315,8 @@
 		state.films = (data.films || []).map((f, i) => ({
 			...f,
 			stars: formatStars(f.rating),
-			order: i
+			order: i,
+			_search: `${f.title || ''} ${f.year || ''} ${f.plainText || ''}`.toLowerCase()
 		}));
 		state.lists = data.lists || [];
 		state.recentReviews = state.films.filter(f => f.isReview).slice(0, 5);
@@ -1016,8 +1326,20 @@
 		openFromHash();
 	}
 
-	if (window.location.protocol === 'file:' && window.__DIARY_DATA__) {
-		hydrate(window.__DIARY_DATA__);
+	function loadFileFallback() {
+		const s = document.createElement('script');
+		s.src = 'data/archive.js';
+		s.onload = () => {
+			if (window.__DIARY_DATA__) hydrate(window.__DIARY_DATA__);
+		};
+		s.onerror = () => {
+			els.contentArea.innerHTML = `<div class="state-box">Could not load diary archive.</div>`;
+		};
+		document.body.appendChild(s);
+	}
+
+	if (window.location.protocol === 'file:') {
+		loadFileFallback();
 	} else {
 		fetch('data/archive.json')
 			.then(res => {
@@ -1026,12 +1348,8 @@
 			})
 			.then(hydrate)
 			.catch(err => {
-				if (window.__DIARY_DATA__) {
-					hydrate(window.__DIARY_DATA__);
-				} else {
-					console.error(err);
-					els.contentArea.innerHTML = `<div class="state-box">Could not load diary archive.</div>`;
-				}
+				console.warn('Falling back to archive.js:', err);
+				loadFileFallback();
 			});
 	}
 })();
