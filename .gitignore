@@ -1,6 +1,10 @@
 # Local config file with sensitive data
 config.json
 
+# Raw RSS XML files (keep only sanitized archive.json / archive.js in repo)
+data/*.xml
+data/*.xml.*
+
 # Python
 __pycache__/
 *.py[cod]

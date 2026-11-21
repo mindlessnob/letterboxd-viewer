@@ -1,568 +1,158 @@
-<!DOCTYPE HTML>
-<!--
-	Multiverse by HTML5 UP
-	html5up.net | @ajlkn
-	Free for personal and commercial use under the CCA 3.0 license (html5up.net/license)
--->
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<title>Moon's Letterboxd diary</title>
-		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" type="image/png" href="https://michaellamb.dev/img/favicon.png" />
-		<link rel="stylesheet" href="assets/css/main.css?v=4" />
-		<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>
-		<style>
-			.toast-container {
-				position: fixed;
-				bottom: 2rem;
-				right: 2rem;
-				z-index: 20000;
-				pointer-events: none;
-			}
-			
-			.toast {
-				background: rgba(36, 41, 44, 0.95);
-				color: #fff;
-				padding: 1rem 2rem;
-				border-radius: 4px;
-				margin: 0.5rem 0;
-				display: flex;
-				align-items: center;
-				gap: 1rem;
-				box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-				animation: slideIn 0.3s ease-out;
-				max-width: 400px;
-				pointer-events: auto;
-				word-break: break-word;
-			}
-			
-			.toast.success {
-				border-left: 4px solid #4CAF50;
-			}
-			
-			.toast.error {
-				border-left: 4px solid #f44336;
-			}
-			
-			.toast-icon {
-				font-size: 1.2rem;
-				flex-shrink: 0;
-			}
-			
-			.toast-message {
-				flex-grow: 1;
-				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
-			}
-			
-			@keyframes slideIn {
-				from {
-					transform: translateX(100%);
-					opacity: 0;
-				}
-				to {
-					transform: translateX(0);
-					opacity: 1;
-				}
-			}
-			
-			@keyframes fadeOut {
-				from {
-					transform: translateX(0);
-					opacity: 1;
-				}
-				to {
-					transform: translateX(100%);
-					opacity: 0;
-				}
-			}
-		</style>
-		<script type="module" crossorigin src="./assets/main.tsx.ed6f4f5c.js"></script>
-		<script>
-			(function () {
-			  var webSdkScript = document.createElement("script");
-		  
-			  // fetch the latest version of the Web-SDK from the CDN
-			  webSdkScript.src =
-				"https://unpkg.com/@grafana/faro-web-sdk@latest/dist/bundle/faro-web-sdk.iife.js";
-		  
-			  webSdkScript.onload = () => {
-				window.GrafanaFaroWebSdk.initializeFaro({
-				  url: "https://grafana.michaellamb.dev/faro-proxy?app=letterboxd-viewer",
-				  app: {
-					name: "letterboxd-viewer",
-					version: "1.0.0",
-					environment: "production",
-				  },
-				  
-				});
-		  
-		  
-				// Load instrumentations at the onLoad event of the web-SDK and after the above configuration.
-				// This is important because we need to ensure that the Web-SDK has been loaded and initialized before we add further instruments!
-				var webTracingScript = document.createElement("script");
-		  
-				// fetch the latest version of the Web Tracing package from the CDN
-				webTracingScript.src =
-				  "https://unpkg.com/@grafana/faro-web-tracing@latest/dist/bundle/faro-web-tracing.iife.js";
-		  
-				// Initialize, configure (if necessary) and add the the new instrumentation to the already loaded and configured Web-SDK.
-				webTracingScript.onload = () => {
-				  window.GrafanaFaroWebSdk.faro.instrumentations.add(
-					new window.GrafanaFaroWebTracing.TracingInstrumentation()
-				  );
-				};
-		  
-				// Append the Web Tracing script script tag to the HTML page
-				document.head.appendChild(webTracingScript);
-			  };
-		  
-			  // Append the Web-SDK script script tag to the HTML page
-			  document.head.appendChild(webSdkScript);
-			})();
-		  </script>		  
-		<link rel="stylesheet" href="./assets/main.css">
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/handlebars.js/4.7.7/handlebars.min.js"></script>
-	</head>
-	<body class="is-preload">
-		<!-- Toast Container -->
-		<div class="toast-container" id="toastContainer"></div>
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Moon's Film Diary</title>
+	<script>
+		(function () {
+			var saved = localStorage.getItem('diary_theme');
+			var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+			document.documentElement.setAttribute('data-theme', theme);
+		})();
+	</script>
+	<link rel="preconnect" href="https://fonts.googleapis.com" />
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+	<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+	<link rel="stylesheet" href="assets/css/editorial.css" />
+</head>
+<body>
+	<!-- Masthead -->
+	<header class="masthead">
+		<div class="masthead-inner">
+			<a href="#" class="brand" id="brandHome">
+				<h1 class="brand-title">Moon’s <em>Film Diary</em></h1>
+				<span class="brand-meta">Screening Journal</span>
+			</a>
+			<div class="masthead-actions">
+				<div class="search-wrap">
+					<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+					<input type="search" id="searchInput" class="search-input" placeholder="Search films or reviews…" aria-label="Search films" />
+					<span class="search-kbd">/</span>
+				</div>
+				<button type="button" class="icon-btn" id="themeToggle" title="Toggle theme" aria-label="Toggle theme"></button>
+			</div>
+		</div>
+	</header>
 
-		<!-- Wrapper -->
-			<div id="wrapper">
+	<main class="container">
+		<!-- Latest Reviews Carousel Hero -->
+		<section class="hero-section" id="heroSection" hidden></section>
 
-				<!-- Header -->
-					<header id="header">
-						<h1><a href="index.html"><strong>Letterboxd diary</strong> of Moon</a></h1>
-						<nav>
-							<ul>
-								<li><a href="#footer" class="icon solid fa-info-circle">Contact</a></li>
-							</ul>
-						</nav>
-					</header>
-
-				<!-- Main -->
-					<div id="main">
-						{{#rss_items}}
-						<article class="thumb">
-							<a href="{{link}}" class="image"><img src="{{image}}" alt="" /></a>
-							<h2>{{title}}</h2>
-							<p>{{description}}</p>
-						</article>
-						{{/rss_items}}
-					</div>
-
-				<!-- Footer -->
-					<footer id="footer" class="panel">
-						<div class="inner split">
-							<div>
-								<section>
-									<h2>This Letterboxd diary viewer was created by Michael Lamb</h2>
-									<p>The project was built from a template created by HTML5UP.</p>
-									<p>Fork by Moon</p>
-								</section>
-								<section>
-									<h2>Follow him on ...</h2>
-									<ul class="icons">
-										<li><a href="https://www.facebook.com/michaellambms/" class="icon brands fa-facebook-f"><span class="label">Facebook</span></a></li>
-										<li><a href="https://www.instagram.com/themichaellamb/" class="icon brands fa-instagram"><span class="label">Instagram</span></a></li>
-										<li><a href="https://github.com/michaellambgelo" class="icon brands fa-github"><span class="label">GitHub</span></a></li>
-										<li><a href="https://www.linkedin.com/in/michael-lamb-ms/" class="icon brands fa-linkedin-in"><span class="label">LinkedIn</span></a></li>
-									</ul>
-								</section>
-								<p class="copyright">
-									&copy; Letterboxd Diary Viewer. Design: <a href="http://html5up.net">HTML5 UP</a>.
-								</p>
-							</div>
-							<div>
-								<section>
-									<h2>Get in touch</h2>
-									<form id="contact-form">
-										<div class="fields">
-											<div class="field half">
-												<input type="text" name="name" id="name" placeholder="Name" required />
-											</div>
-											<div class="field half">
-												<input type="text" name="email" id="email" placeholder="Email" required />
-											</div>
-											<div class="field">
-												<textarea name="message" id="message" rows="4" placeholder="Message" required></textarea>
-											</div>
-										</div>
-										<ul class="actions">
-											<li><input type="submit" value="Send Message" class="primary" /></li>
-											<li><input type="reset" value="Reset" /></li>
-										</ul>
-									</form>
-								</section>
-							</div>
-						</div>
-					</footer>
-
+		<!-- Filters, View Toggle & Sort -->
+		<section class="toolbar" aria-label="Filter and sort diary">
+			<div class="filter-pills" id="filterPills">
+				<button type="button" class="pill active" data-filter="all">All Films <span class="count" id="countAll">0</span></button>
+				<button type="button" class="pill" data-filter="reviews">Reviews <span class="count" id="countReviews">0</span></button>
+				<button type="button" class="pill" data-filter="liked">Liked ♥ <span class="count" id="countLiked">0</span></button>
+				<button type="button" class="pill" data-filter="top">4★ &amp; Up <span class="count" id="countTop">0</span></button>
+				<button type="button" class="pill" data-filter="rewatch">Rewatches <span class="count" id="countRewatch">0</span></button>
+				<button type="button" class="pill" data-filter="lists">Curated Lists <span class="count" id="countLists">0</span></button>
 			</div>
 
-		<!-- Scripts -->
-			<script src="assets/js/jquery.min.js"></script>
-			<script src="assets/js/jquery.poptrox.min.js"></script>
-			<script src="assets/js/browser.min.js"></script>
-			<script src="assets/js/breakpoints.min.js"></script>
-			<script src="assets/js/util.js"></script>
-			<script src="assets/js/main.js"></script>
-			<script>
-				// Function to format the title with semantic span wrappers
-				function formatTitle(title) {
-					// Pattern matches: film title, year, and optional rating
-					const pattern = /^(.*?),\s*(\d{4})(?:\s*-\s*(.+))?$/;
-					const match = title.match(pattern);
-					
-					if (match) {
-						const [_, filmTitle, year, rating] = match;
-						let formatted = `<span class="title-text">${filmTitle}</span>`;
-						formatted += `<span class="year">${year}</span>`;
-						if (rating) {
-							formatted += `<span class="rating">${rating}</span>`;
-						}
-						return formatted;
-					}
-					return title; // Return original if no match
-				}
+			<div class="toolbar-right" id="toolbarRight">
+				<div class="view-toggle" id="viewToggle" role="group" aria-label="Switch layout view">
+					<button type="button" class="view-btn active" data-view="grid" title="Poster grid">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+						Grid
+					</button>
+					<button type="button" class="view-btn" data-view="diary" title="Chronological diary list">
+						<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+						Diary
+					</button>
+				</div>
+				<select id="sortSelect" class="sort-select" aria-label="Sort films">
+					<option value="recent">Recently Watched</option>
+					<option value="rating-desc">Highest Rated</option>
+					<option value="year-desc">Release Year (Newest)</option>
+					<option value="year-asc">Release Year (Oldest)</option>
+					<option value="title-asc">Title (A–Z)</option>
+				</select>
+			</div>
+		</section>
 
-				$.ajax({
-					type: 'GET',
-					url: 'data/cleaned_rss.xml',
-					dataType: 'xml',
-					success: function(data) {
-						var rss_items = [];
-						
-						// Debug: Show the raw XML in console
-						console.log("Loaded XML data:", data);
-						
-						$(data).find('item').each(function() {
-							// Debug: Show each item
-							console.log("Processing item:", $(this).find('title').text());
-							
-							// Extract description content directly
-							var description = $(this).find('description').html() || "";
-							
-							// Debug: Show the extracted description
-							console.log("Raw description:", description);
-							
-							// Clean up CDATA wrapper if present
-							if (description.includes('CDATA')) {
-								description = description.replace(/<!\[CDATA\[(.*?)\]\]>/s, '$1');
-							}
-							
-							// Debug: Show the cleaned description
-							console.log("Cleaned description:", description);
-							
-							var title = $(this).find('title').text();
-							
-							// Extract image URL from description - not needed for cleaned RSS
-							// as img tags have been removed, but we'll keep the code for backward compatibility
-							var imgMatch = description.match(/src="([^"]+)"/);
-							var imgUrl = imgMatch ? imgMatch[1] : null;
-							
-							// For items without image match in description, try to construct the URL from the title
-							if (!imgUrl) {
-								// Sanitize the title for image filename
-								var imgBase = title.toLowerCase()
-									.replace(/ /g, '-')
-									.replace(/[^\p{L}0-9-]/gu, '')
-									.replace(/-+/g, '-')
-									.replace(/^-|-$/g, '')
-									.replace(/½/g, '');
-								
-								// Check if this might be a movie entry by looking at the title format
-								if (title.match(/.*,\s*\d{4}/)) {
-									// Assume it's a movie entry and construct the image path
-									var thumbPath = 'assets/images/thumbs/' + imgBase + '_thumb.jpg';
-									
-									// Use a placeholder image URL
-									imgUrl = thumbPath;
-								}
-							}
-							
-							// Skip items without images
-							if (!imgUrl) return;
-							
-							// Sanitize the title for image filename - preserve accented characters
-							var imgBase = title.toLowerCase()
-								.replace(/ /g, '-')
-								.replace(/[^\p{L}0-9-]/gu, '')  // This regex preserves Unicode letters including accents
-								.replace(/-+/g, '-')
-								.replace(/^-|-$/g, '')
-								.replace(/½/g, '');
-							
-							// Prepare image paths
-							var thumbImage, fullImage;
-							
-							// For list entries, use the original image URL
-							if (imgUrl.includes('letterboxd-list-')) {
-								thumbImage = imgUrl;
-								fullImage = imgUrl;
-							} else {
-								// For movie entries, use our downloaded images
-								thumbImage = 'assets/images/thumbs/' + imgBase + '_thumb.jpg';
-								fullImage = 'assets/images/fulls/' + imgBase + '_full.jpg';
-							}
-							
-							var item = {
-								link: fullImage, // Link to the full-size image for the modal
-								title: formatTitle(title),
-								description: description,
-								image: thumbImage,
-								fullImage: fullImage
-							};
+		<!-- Content Grid / Diary List -->
+		<section id="contentArea">
+			<div class="state-box">Loading screening journal…</div>
+		</section>
+	</main>
 
-							rss_items.push(item);
-						});
-						var template = Handlebars.compile($('#template').html());
-						$('#main').html(template({rss_items: rss_items}));
-						
-						// Initialize Poptrox after content is loaded
-						$('#main').poptrox({
-							baseZIndex: 20000,
-							caption: function($a) {
-								var $article = $a.closest('.thumb');
-								// Wrap in <h2> so .caption-content h2 CSS selectors apply
-								var captionHtml = '<div class="caption-content">' +
-									'<h2>' + $article.find('h2').html() + '</h2>' +
-									'<div class="review-text">' + $article.find('.description-content').html() + '</div>' +
-									'</div>';
-								return captionHtml;
-							},
-							fadeSpeed: 300,
-							onPopupClose: function() {
-								$('body').removeClass('modal-active');
-								$('body').css('overflow', '');
-								$(document).off('touchmove.popupCaption');
-							},
-							onPopupOpen: function() {
-								$('body').addClass('modal-active');
-								$('body').css('overflow', 'hidden');
-								// iOS fix: stop touchmove bubbling to Poptrox overlay so .caption can scroll
-								$(document).on('touchmove.popupCaption', '.poptrox-popup .caption', function(e) {
-									e.stopPropagation();
-								});
-							},
-							overlayOpacity: 0.8,
-							popupCloserText: '',
-							popupHeight: 'auto',
-							popupLoaderText: '',
-							popupSpeed: 300,
-							popupWidth: Math.min(600, window.innerWidth - 32),
-							selector: '.thumb > a.image',
-							usePopupCaption: true,
-							usePopupCloser: true,
-							usePopupDefaultStyling: false,
-							usePopupForceClose: true,
-							usePopupLoader: true,
-							usePopupNav: true,
-							windowMargin: window.innerWidth <= 736 ? 16 : 50
-						});
-						
-						// Add minimal CSS for better readability
-						$('<style>')
-							.prop('type', 'text/css')
-							.html(`
-								.poptrox-popup {
-									background: rgba(20, 20, 20, 0.95) !important;
-									border-radius: 8px !important;
-									overflow: hidden !important;
-									box-shadow: 0 5px 25px rgba(0, 0, 0, 0.5) !important;
-								}
-								.poptrox-popup .pic {
-									padding: 20px 20px 10px 20px !important;
-								}
-								.poptrox-popup .pic img {
-									max-width: 100% !important;
-									border-radius: 4px !important;
-								}
-								.poptrox-popup .caption {
-									padding: 0 20px 20px 20px !important;
-								}
-								.caption-content {
-									background: rgba(0, 0, 0, 0.7) !important;
-									padding: 15px !important;
-									border-radius: 4px !important;
-									color: #fff !important;
-								}
-								.caption-content h2 {
-									margin-top: 0 !important;
-									text-transform: none !important;
-									line-height: 1.3 !important;
-									font-size: 1em !important;
-								}
-								.caption-content h2 .title-text {
-									display: block !important;
-									color: #f4f4f0 !important;
-									font-weight: 700 !important;
-									font-size: 1.05em !important;
-									letter-spacing: 0.03em !important;
-								}
-								.caption-content h2 .year {
-									display: block !important;
-									color: rgba(255, 255, 255, 0.55) !important;
-									font-size: 0.85em !important;
-									font-weight: 400 !important;
-									letter-spacing: 0.1em !important;
-									margin-top: 0.2em !important;
-								}
-								.caption-content h2 .rating {
-									display: block !important;
-									color: #00e054 !important;
-									font-size: 1.45em !important;
-									font-weight: 600 !important;
-									letter-spacing: 0.06em !important;
-									margin-top: 0.3em !important;
-								}
-								.caption-content p {
-									margin-bottom: 0 !important;
-									color: #ddd !important;
-								}
-								.poptrox-popup .closer {
-									top: 10px !important;
-									right: 10px !important;
-									width: 38px !important;
-									height: 38px !important;
-									background-color: rgba(10, 10, 10, 0.8) !important;
-									background-size: 28px !important;
-									border-radius: 50% !important;
-									opacity: 0.85 !important;
-									filter: none !important;
-								}
-							`)
-							.appendTo('head');
-					}
-				});
-			</script>
-			<script id="template" type="text/x-handlebars-template">
-				{{#rss_items}}
-				<article class="thumb">
-					<a href="{{fullImage}}" class="image"><img src="{{image}}" alt="" /></a>
-					<h2>{{{title}}}</h2>
-					<div class="description-content">{{{description}}}</div>
-				</article>
-				{{/rss_items}}
-			</script>
-			<script>
-				// Toast notification system
-				function showToast(message, type = 'success') {
-					const container = document.getElementById('toastContainer');
-					if (!container) {
-						console.error('Toast container not found');
-						return;
-					}
+	<!-- Colophon Footer -->
+	<footer class="colophon">
+		<div class="container colophon-inner">
+			<div class="colophon-stats" id="colophonStats"></div>
+			<div class="colophon-links">
+				<span>Moon’s Film Diary</span>
+			</div>
+		</div>
+	</footer>
 
-					// Create toast element
-					const toast = document.createElement('div');
-					toast.className = `toast ${type}`;
-					
-					const icon = type === 'success' ? '✓' : '⚠';
-					
-					toast.innerHTML = `
-						<span class="toast-icon">${icon}</span>
-						<span class="toast-message">${message}</span>
-					`;
-					
-					// Add to container
-					container.appendChild(toast);
-					
-					// Debug log
-					console.log('Toast created:', { message, type });
-					
-					// Remove the toast after 5 seconds
-					setTimeout(() => {
-						toast.style.animation = 'fadeOut 0.3s ease-out forwards';
-						setTimeout(() => {
-							if (container.contains(toast)) {
-								container.removeChild(toast);
-							}
-						}, 300);
-					}, 5000);
-				}
+	<!-- Split-Screen Reader Modal -->
+	<div class="modal-backdrop" id="readerBackdrop" role="dialog" aria-modal="true" aria-labelledby="readerTitle">
+		<div class="reader-modal" id="readerModal">
+			<aside class="reader-aside" id="readerAside">
+				<img src="" alt="" class="reader-poster" id="readerPoster" />
+				<div class="reader-facts" id="readerFacts"></div>
+			</aside>
+			<div class="reader-content">
+				<div class="reader-top-bar">
+					<div class="reader-nav">
+						<button type="button" class="icon-btn" id="prevBtn" title="Previous (←)" aria-label="Previous entry">←</button>
+						<button type="button" class="icon-btn" id="nextBtn" title="Next (→)" aria-label="Next entry">→</button>
+						<span class="reader-counter" id="readerCounter"></span>
+					</div>
+					<div class="reader-top-actions">
+						<button type="button" class="btn-ghost" id="shareCardBtn" style="padding: 0.32rem 0.78rem; font-size: 0.73rem;">Share card</button>
+						<button type="button" class="btn-ghost" id="copyLinkBtn" style="padding: 0.32rem 0.78rem; font-size: 0.73rem;">Copy link</button>
+						<button type="button" class="icon-btn" id="closeReaderBtn" title="Close (Esc)" aria-label="Close modal">✕</button>
+					</div>
+				</div>
+				<div class="reader-scroll" id="readerScroll">
+					<h2 class="reader-title" id="readerTitle"></h2>
+					<div class="reader-subtitle" id="readerSubtitle"></div>
+					<div class="reader-prose" id="readerProse"></div>
+				</div>
+			</div>
+		</div>
+	</div>
 
-				// Test toast on page load (for debugging)
-				window.addEventListener('load', () => {
-					const isLocalhost = window.location.hostname === 'localhost' || 
-						window.location.hostname === '127.0.0.1' ||
-						window.location.hostname === '';
-					
-					if (isLocalhost) {
-						console.log('Testing toast notification system...');
-						setTimeout(() => {
-							showToast('Toast notification system initialized', 'success');
-						}, 1000);
-					}
-				});
+	<!-- Shareable Review / Diary Card Modal -->
+	<div class="modal-backdrop" id="shareBackdrop" role="dialog" aria-modal="true" aria-labelledby="shareHeading">
+		<div class="share-modal">
+			<div class="share-header">
+				<div>
+					<h2 id="shareHeading">Shareable Card</h2>
+					<p>Export a clean PNG for Instagram, X, or messages.</p>
+				</div>
+				<button type="button" class="icon-btn" id="closeShareBtn" aria-label="Close share dialog">✕</button>
+			</div>
 
-				// Contact form submission handler
-				document.getElementById('contact-form').addEventListener('submit', async function(e) {
-					e.preventDefault();
-					
-					const submitButton = document.querySelector('input[type="submit"]');
-					submitButton.disabled = true;
-					submitButton.value = 'Sending...';
-					
-					try {
-						// Get webhook URL from global variable
-						const webhookUrl = window.DISCORD_WEBHOOK_URL;
-						console.log('Webhook URL available:', !!webhookUrl);
-						
-						if (!webhookUrl) {
-							throw new Error('Contact form is not properly configured. Please try again later.');
-						}
-						
-						// Format the message for the webhook
-						const payload = {
-							content: null,
-							embeds: [{
-								title: 'New Contact Form Submission',
-								fields: [
-									{
-										name: 'Name',
-										value: this.querySelector('input[name="name"]').value,
-										inline: true
-									},
-									{
-										name: 'Email',
-										value: this.querySelector('input[name="email"]').value,
-										inline: true
-									},
-									{
-										name: 'Message',
-										value: this.querySelector('textarea[name="message"]').value
-									}
-								],
-								color: 5814783
-							}]
-						};
+			<div class="share-controls">
+				<div class="view-toggle" id="shareFormatToggle" role="group" aria-label="Card aspect ratio">
+					<button type="button" class="view-btn active" data-format="card">4:5 Card</button>
+					<button type="button" class="view-btn" data-format="story">9:16 Story</button>
+				</div>
+				<div class="view-toggle" id="shareThemeToggle" role="group" aria-label="Card color theme">
+					<button type="button" class="view-btn active" data-card-theme="dark">Dark</button>
+					<button type="button" class="view-btn" data-card-theme="light">Light</button>
+				</div>
+			</div>
 
-						// Send to webhook
-						const response = await fetch(webhookUrl, {
-							method: 'POST',
-							headers: {
-								'Content-Type': 'application/json'
-							},
-							body: JSON.stringify(payload)
-						});
+			<div class="share-preview-stage">
+				<canvas id="shareCanvas" class="share-canvas"></canvas>
+			</div>
 
-						if (!response.ok) {
-							throw new Error('Failed to send message. Please try again.');
-						}
+			<div class="share-footer">
+				<button type="button" class="btn-primary" id="downloadCardBtn" style="width: 100%; justify-content: center;">Download PNG</button>
+			</div>
+		</div>
+	</div>
 
-						// Show success message
-						showToast('Message sent successfully! We\'ll get back to you soon.', 'success');
-						this.reset();
-					} catch (error) {
-						console.error('Error:', error);
-						showToast(error.message || 'An unexpected error occurred. Please try again.', 'error');
-					} finally {
-						submitButton.disabled = false;
-						submitButton.value = 'Send Message';
-					}
-				});
-			</script>
+	<!-- Toasts -->
+	<div class="toast-stack" id="toastStack"></div>
 
-	</body>
+	<!-- Local archive fallback for file:// previews; HTTP/GitHub Pages fetches live data/archive.json -->
+	<script src="data/archive.js"></script>
+	<script src="assets/js/app.js"></script>
+</body>
 </html>

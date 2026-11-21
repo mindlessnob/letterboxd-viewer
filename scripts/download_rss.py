@@ -1,6 +1,7 @@
 import requests
 import os
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 import xml.etree.ElementTree as ET
 from PIL import Image
 import sys
@@ -13,8 +14,8 @@ from bs4 import BeautifulSoup
 if sys.stdout.encoding != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-# URL of the RSS feed
-url = 'https://letterboxd.com/honeypals/rss/'
+# URL of the RSS feed (loaded from GitHub Actions Secret or local env var)
+url = os.environ.get('LETTERBOXD_RSS_URL', '').strip()
 
 # Set up paths using pathlib for cross-platform compatibility
 script_dir = Path(__file__).parent
@@ -189,17 +190,16 @@ def clean_description(description):
 
 # Fetch the RSS feed
 def download_rss():
+    if not url:
+        print('Error: LETTERBOXD_RSS_URL environment variable is not set.', file=sys.stderr)
+        sys.exit(1)
+
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=30)
         response.raise_for_status()
+        print('Successfully fetched RSS feed in memory')
         
-        # Save the RSS feed
-        rss_path = data_dir / 'rss.xml'
-        with open(rss_path, 'wb') as f:
-            f.write(response.content)
-        print(f'Successfully downloaded RSS feed to {rss_path}')
-        
-        # Parse the XML
+        # Parse the XML directly in memory (do not write raw XML to disk)
         tree = ET.fromstring(response.content)
         
         # Create a dictionary to store cleaned descriptions
@@ -223,29 +223,25 @@ def download_rss():
                     
                     # Check if this is a list entry (contains "letterboxd-list-")
                     if "letterboxd-list-" in img_url:
-                        # For list entries, we'll keep the original image URL
                         img_url = img_url
                     else:
                         # For movie entries, get the highest resolution possible
-                        # Replace common resolution patterns with higher resolution
-                        img_url = img_url.replace('-0-150-', '-0-2000-')  # Increase from 150 to 2000
-                        img_url = img_url.replace('-0-230-', '-0-2000-')  # Increase from 230 to 2000
-                        img_url = img_url.replace('-0-500-', '-0-2000-')  # Increase from 500 to 2000
-                        img_url = img_url.replace('-0-1000-', '-0-2000-')  # Increase from 1000 to 2000
+                        img_url = img_url.replace('-0-150-', '-0-2000-')
+                        img_url = img_url.replace('-0-230-', '-0-2000-')
+                        img_url = img_url.replace('-0-500-', '-0-2000-')
+                        img_url = img_url.replace('-0-1000-', '-0-2000-')
                     
                     # Define paths for full and thumb images
-                    base_filename = base_filename.rstrip('-')  # Remove any trailing hyphens
+                    base_filename = base_filename.rstrip('-')
                     full_path = fulls_dir / f'{base_filename}_full.jpg'
                     thumb_path = thumbs_dir / f'{base_filename}_thumb.jpg'
                     
                     # Download and create thumbnail only if they don't exist
                     if not full_path.exists():
                         if download_image(img_url, str(full_path)):
-                            # Only create thumbnail if download succeeded
                             if not thumb_path.exists():
                                 create_thumbnail(str(full_path), str(thumb_path))
                     elif not thumb_path.exists():
-                        # If full exists but thumb doesn't, recreate thumb
                         create_thumbnail(str(full_path), str(thumb_path))
                 
                 # Clean the description content
@@ -258,69 +254,189 @@ def download_rss():
             except Exception as e:
                 print(f'Error processing item: {e}')
                 continue
-        
-        # Save the cleaned RSS data to a new file
-        cleaned_rss_path = data_dir / 'cleaned_rss.xml'
-        
-        # Create a new XML string manually to ensure proper formatting
-        xml_lines = ['<?xml version="1.0" encoding="utf-8"?>']
-        xml_lines.append('<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:letterboxd="https://letterboxd.com" xmlns:tmdb="https://themoviedb.org">')
-        xml_lines.append('  <channel>')
-        
-        # Add channel metadata
-        channel = tree.find('channel')
-        for child in channel:
-            if child.tag == 'item':
-                continue
-            
-            # Convert element to string
-            child_str = ET.tostring(child, encoding='unicode')
-            xml_lines.append(f"    {child_str}")
-        
-        # Add items with cleaned descriptions
-        for item in tree.findall('.//item'):
-            item_id = item.find('guid').text
-            
-            # Start item tag
-            xml_lines.append('    <item>')
-            
-            # Add all child elements except description
-            for child in item:
-                if child.tag == 'description':
-                    continue
-                
-                # Convert element to string
-                child_str = ET.tostring(child, encoding='unicode')
-                xml_lines.append(f"      {child_str}")
-            
-            # Add description with CDATA if we have a cleaned version
-            if item_id in cleaned_descriptions:
-                cleaned_desc = cleaned_descriptions[item_id]
-                xml_lines.append(f'      <description><![CDATA[{cleaned_desc}]]></description>')
-            else:
-                # Fallback to original description
-                desc = item.find('description').text
-                xml_lines.append(f'      <description>{desc}</description>')
-            
-            # End item tag
-            xml_lines.append('    </item>')
-        
-        # Close channel and rss tags
-        xml_lines.append('  </channel>')
-        xml_lines.append('</rss>')
-        
-        # Write the XML to file
-        with open(cleaned_rss_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(xml_lines))
-        
-        print(f'Successfully saved cleaned RSS feed to {cleaned_rss_path}')
+
+        # Merge into accumulating privacy-safe archive.json and archive.js
+        update_archive_json(tree, cleaned_descriptions)
                 
     except requests.RequestException as e:
-        print(f'Failed to fetch RSS feed: {e}')
+        print(f'Failed to fetch RSS feed: {e}', file=sys.stderr)
+        sys.exit(1)
     except ET.ParseError as e:
-        print(f'Failed to parse RSS feed: {e}')
+        print(f'Failed to parse RSS feed: {e}', file=sys.stderr)
+        sys.exit(1)
     except Exception as e:
-        print(f'Unexpected error: {e}')
+        print(f'Unexpected error: {e}', file=sys.stderr)
+        sys.exit(1)
+
+
+def strip_identifying_links(html_text):
+    """Remove any links or references pointing to the Letterboxd user profile."""
+    if not html_text:
+        return ''
+    soup = BeautifulSoup(html_text, 'html.parser')
+    for a in soup.find_all('a'):
+        href = (a.get('href') or '').lower()
+        if 'letterboxd.com' in href:
+            # Replace profile/list/letterboxd links with plain text so visitors stay on this site
+            a.replace_with(a.get_text())
+    return str(soup).strip()
+
+
+def make_url_slug(title, year=None):
+    base = f"{title}-{year}" if year else title
+    slug = re.sub(r'[^\w\s-]', '', base.lower())
+    slug = re.sub(r'[-\s]+', '-', slug).strip('-')
+    return slug or 'entry'
+
+
+def get_ns_text(item, local_name):
+    for child in item:
+        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
+        if tag == local_name and child.text:
+            return child.text.strip()
+    return ''
+
+
+def update_archive_json(tree, cleaned_descriptions=None):
+    """Merge RSS items into an accumulating, privacy-safe data/archive.json."""
+    archive_path = data_dir / 'archive.json'
+    existing_films = {}
+    existing_lists = {}
+
+    if archive_path.exists():
+        try:
+            old = json.loads(archive_path.read_text(encoding='utf-8'))
+            for f in old.get('films', []):
+                if f.get('id'):
+                    existing_films[f['id']] = f
+            for l in old.get('lists', []):
+                if l.get('id'):
+                    existing_lists[l['id']] = l
+        except Exception as e:
+            print(f'Warning: could not read existing archive.json: {e}')
+
+    used_slugs = {f.get('slug') for f in existing_films.values() if f.get('slug')}
+
+    items = tree.findall('.//item')
+    for idx, item in enumerate(items):
+        raw_title = (item.findtext('title') or '').strip()
+        guid = (item.findtext('guid') or f'item-{idx}').strip()
+        pub_date = (item.findtext('pubDate') or '').strip()
+
+        if cleaned_descriptions and guid in cleaned_descriptions:
+            desc_html = cleaned_descriptions[guid]
+        else:
+            desc_html = clean_description(item.findtext('description') or '')
+
+        desc_html = strip_identifying_links(desc_html)
+        plain_text = BeautifulSoup(desc_html, 'html.parser').get_text(' ', strip=True)
+
+        if 'letterboxd-list-' in guid:
+            slug = existing_lists.get(guid, {}).get('slug') or make_url_slug(raw_title)
+            existing_lists[guid] = {
+                'id': guid,
+                'slug': slug,
+                'title': raw_title,
+                'pubDate': pub_date,
+                'descriptionHtml': desc_html,
+                'plainText': plain_text
+            }
+            continue
+
+        film_title = get_ns_text(item, 'filmTitle') or re.sub(r',\s*\d{4}.*$', '', raw_title).strip()
+        year_str = get_ns_text(item, 'filmYear')
+        film_year = int(year_str) if year_str.isdigit() else None
+        watched_date = get_ns_text(item, 'watchedDate')
+        rating_str = get_ns_text(item, 'memberRating')
+        try:
+            rating = float(rating_str) if rating_str else None
+        except ValueError:
+            rating = None
+        liked = get_ns_text(item, 'memberLike').lower() == 'yes'
+        rewatch = get_ns_text(item, 'rewatch').lower() == 'yes'
+
+        has_spoilers = (
+            'contains spoilers' in raw_title.lower()
+            or 'this review may contain spoilers' in plain_text.lower()
+        )
+        # Strip Letterboxd's redundant spoiler notice paragraph if present
+        if has_spoilers:
+            soup = BeautifulSoup(desc_html, 'html.parser')
+            for p in soup.find_all('p'):
+                if 'this review may contain spoilers' in p.get_text(' ', strip=True).lower():
+                    p.decompose()
+            desc_html = str(soup).strip()
+            plain_text = BeautifulSoup(desc_html, 'html.parser').get_text(' ', strip=True)
+
+        is_review = (
+            'letterboxd-review-' in guid
+            or (len(plain_text) > 65 and not re.match(r'^Watched on\s', plain_text, re.I))
+        )
+
+        img_base = sanitize_filename(raw_title).rstrip('-')
+        slug = existing_films.get(guid, {}).get('slug')
+        if not slug:
+            candidate = make_url_slug(film_title, film_year)
+            slug = candidate
+            n = 2
+            while slug in used_slugs:
+                slug = f'{candidate}-{n}'
+                n += 1
+            used_slugs.add(slug)
+
+        # Parse pubDate timestamp for reliable chronological sorting
+        pub_ts = 0
+        if pub_date:
+            try:
+                from email.utils import parsedate_to_datetime
+                pub_ts = int(parsedate_to_datetime(pub_date).timestamp())
+            except Exception:
+                pub_ts = 0
+
+        existing_films[guid] = {
+            'id': guid,
+            'slug': slug,
+            'title': film_title,
+            'year': film_year,
+            'watchedDate': watched_date,
+            'pubTimestamp': pub_ts,
+            'rating': rating,
+            'liked': liked,
+            'rewatch': rewatch,
+            'isReview': is_review,
+            'hasSpoilers': has_spoilers,
+            'descriptionHtml': desc_html,
+            'plainText': plain_text,
+            'thumb': f'assets/images/thumbs/{img_base}_thumb.jpg',
+            'full': f'assets/images/fulls/{img_base}_full.jpg'
+        }
+
+    films_sorted = sorted(
+        existing_films.values(),
+        key=lambda f: (f.get('watchedDate') or '', f.get('pubTimestamp') or 0),
+        reverse=True
+    )
+    lists_sorted = list(existing_lists.values())
+
+    archive_data = {
+        'updatedAt': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'films': films_sorted,
+        'lists': lists_sorted
+    }
+
+    json_str = json.dumps(archive_data, indent=2, ensure_ascii=False)
+    archive_path.write_text(json_str, encoding='utf-8')
+
+    # Also write JS wrapper so index.html works seamlessly even when opened locally via file://
+    archive_js_path = data_dir / 'archive.js'
+    archive_js_path.write_text(f'window.__DIARY_DATA__ = {json_str};\n', encoding='utf-8')
+    print(f'Successfully updated {archive_path} and {archive_js_path} ({len(films_sorted)} films, {len(lists_sorted)} lists)')
+
 
 if __name__ == '__main__':
-    download_rss()
+    if '--build-archive-only' in sys.argv:
+        cleaned_rss_path = data_dir / 'cleaned_rss.xml'
+        tree = ET.parse(cleaned_rss_path).getroot()
+        update_archive_json(tree)
+    else:
+        download_rss()
