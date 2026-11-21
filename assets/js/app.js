@@ -34,6 +34,7 @@
 		readerPoster: document.getElementById('readerPoster'),
 		readerFacts: document.getElementById('readerFacts'),
 		readerTitle: document.getElementById('readerTitle'),
+		readerDirector: document.getElementById('readerDirector'),
 		readerSubtitle: document.getElementById('readerSubtitle'),
 		readerProse: document.getElementById('readerProse'),
 		readerScroll: document.getElementById('readerScroll'),
@@ -48,8 +49,8 @@
 		shareStyleToggle: document.getElementById('shareStyleToggle'),
 		shareFormatToggle: document.getElementById('shareFormatToggle'),
 		shareThemeToggle: document.getElementById('shareThemeToggle'),
-		shareReviewToggle: document.getElementById('shareReviewToggle'),
-		shareReviewLabel: document.getElementById('shareReviewLabel'),
+		shareReviewBtn: document.getElementById('shareReviewBtn'),
+		shareReviewIcon: document.getElementById('shareReviewIcon'),
 		shareCanvas: document.getElementById('shareCanvas'),
 		downloadCardBtn: document.getElementById('downloadCardBtn'),
 		toastStack: document.getElementById('toastStack')
@@ -179,6 +180,7 @@
 						${dotsHtml}
 					</div>
 					<h2 class="hero-title">${escapeHtml(featured.title)}${yearHtml}</h2>
+					${featured.director ? `<p class="hero-director">Directed by ${escapeHtml(featured.director)}</p>` : ''}
 					<div class="hero-rating-row">
 						${starsHtml}
 						${heartHtml}
@@ -387,6 +389,7 @@
 									<div class="diary-title-line">
 										<h4 class="diary-title">${escapeHtml(f.title)}</h4>
 										${f.year ? `<span class="diary-year">${f.year}</span>` : ''}
+										${f.director ? `<span class="diary-year">· ${escapeHtml(f.director)}</span>` : ''}
 										${f.isReview ? '<span class="inline-badge is-gold">Review</span>' : ''}
 										${f.hasSpoilers ? '<span class="inline-badge is-spoiler">Spoilers</span>' : ''}
 										${f.rewatch ? '<span class="inline-badge">↻ Rewatch</span>' : ''}
@@ -433,6 +436,7 @@
 				</div>
 				<div class="card-body">
 					<h3 class="card-title">${escapeHtml(f.title)}</h3>
+					${f.director ? `<div class="card-director">${escapeHtml(f.director)}</div>` : ''}
 					<div class="card-meta-row">
 						<span>${f.year || '—'}</span>
 						<span>${escapeHtml(formatShortDate(f.watchedDate))}</span>
@@ -471,6 +475,7 @@
 			els.readerAside.style.display = 'none';
 			els.shareCardBtn.style.display = 'none';
 			els.readerTitle.textContent = item.title;
+			els.readerDirector.hidden = true;
 			els.readerSubtitle.innerHTML = `<span class="inline-badge is-gold">Curated List</span>`;
 			els.readerProse.innerHTML = item.descriptionHtml || '<p class="reader-log-note">No list notes available.</p>';
 		} else {
@@ -494,6 +499,7 @@
 			}
 
 			els.readerFacts.innerHTML = `
+				${item.director ? `<div class="fact-row"><span class="fact-label">Director</span><span style="text-align:right">${escapeHtml(item.director)}</span></div>` : ''}
 				<div class="fact-row"><span class="fact-label">Watched</span><span>${escapeHtml(formatFullDate(item.watchedDate) || '—')}</span></div>
 				<div class="fact-row"><span class="fact-label">Released</span><span>${item.year || '—'}</span></div>
 				<div class="fact-row"><span class="fact-label">Rating</span><span style="color:var(--green)">${item.stars || 'Unrated'}</span></div>
@@ -502,6 +508,12 @@
 			`;
 
 			els.readerTitle.textContent = item.title;
+			if (item.director) {
+				els.readerDirector.textContent = `Directed by ${item.director}`;
+				els.readerDirector.hidden = false;
+			} else {
+				els.readerDirector.hidden = true;
+			}
 			els.readerSubtitle.innerHTML = `
 				${item.stars ? `<span class="stars">${item.stars}</span>` : '<span class="card-unrated">Logged</span>'}
 				${item.liked ? '<span class="heart-icon">♥</span>' : ''}
@@ -821,18 +833,22 @@
 
 		ctx.textBaseline = 'middle';
 
-		// ── STYLE 2: CINEMA (Blurred Ambient Backdrop) ──
+		// ── STYLE 2: CINEMA (Blurred Ambient Backdrop — iOS Safari safe) ──
 		if (style === 'cinema') {
 			ctx.fillStyle = isLight ? '#ece7dc' : '#08080a';
 			ctx.fillRect(0, 0, W, H);
 
 			if (posterImg) {
+				// Downscale-upscale blur works reliably on every mobile browser including iOS Safari
+				const tiny = document.createElement('canvas');
+				tiny.width = 24;
+				tiny.height = 36;
+				const tctx = tiny.getContext('2d');
+				tctx.drawImage(posterImg, 0, 0, 24, 36);
 				ctx.save();
-				ctx.filter = 'blur(52px) saturate(1.25)';
-				const scale = Math.max(W / posterImg.width, H / posterImg.height) * 1.15;
-				const bw = posterImg.width * scale;
-				const bh = posterImg.height * scale;
-				ctx.drawImage(posterImg, (W - bw) / 2, (H - bh) / 2, bw, bh);
+				ctx.imageSmoothingEnabled = true;
+				ctx.imageSmoothingQuality = 'high';
+				ctx.drawImage(tiny, -60, -60, W + 120, H + 120);
 				ctx.restore();
 			}
 
@@ -850,25 +866,32 @@
 			ctx.fillStyle = vig;
 			ctx.fillRect(0, 0, W, H);
 
-			const posterW = showReview ? (isStory ? 440 : 330) : (isStory ? 560 : 460);
+			const posterW = showReview ? (isStory ? 440 : 320) : (isStory ? 560 : 450);
 			const posterH = Math.round(posterW * 1.5);
 			const posterX = Math.round((W - posterW) / 2);
-			const posterY = showReview ? (isStory ? 180 : 120) : (isStory ? 280 : 155);
+			const posterY = showReview ? (isStory ? 170 : 110) : (isStory ? 260 : 145);
 
 			drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 20, palette, isLight);
 
-			let cy = posterY + posterH + (isStory ? 84 : 64);
+			let cy = posterY + posterH + (isStory ? 80 : 60);
 			ctx.textAlign = 'center';
 			ctx.fillStyle = palette.ink;
-			ctx.font = `600 ${isStory ? 62 : 52}px "Newsreader", Georgia, serif`;
+			ctx.font = `600 ${isStory ? 60 : 50}px "Newsreader", Georgia, serif`;
 			for (const line of wrapCanvasText(ctx, film.title, W - 180, 2)) {
 				ctx.fillText(line, W / 2, cy);
-				cy += isStory ? 72 : 60;
+				cy += isStory ? 70 : 58;
+			}
+
+			if (film.director) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = `italic 400 ${isStory ? 30 : 26}px "Newsreader", Georgia, serif`;
+				ctx.fillText(`Directed by ${film.director}`, W / 2, cy + 4);
+				cy += isStory ? 46 : 38;
 			}
 
 			cy += 10;
 			drawCenteredMetaRow(ctx, film, W / 2, cy, palette);
-			cy += isStory ? 68 : 54;
+			cy += isStory ? 66 : 52;
 
 			if (showReview) {
 				const footerY = H - 105;
@@ -921,7 +944,21 @@
 			ctx.fillStyle = palette.gold;
 			ctx.font = '500 20px "JetBrains Mono", monospace';
 			ctx.fillText(film.isReview ? 'REVIEW' : 'DIARY', sideX, sy);
-			sy += 56;
+			sy += 52;
+
+			if (film.director) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = '400 18px "JetBrains Mono", monospace';
+				ctx.fillText('DIRECTOR', sideX, sy);
+				sy += 30;
+				ctx.fillStyle = palette.ink;
+				ctx.font = '500 23px "Plus Jakarta Sans", sans-serif';
+				for (const dLine of wrapCanvasText(ctx, film.director, sideW, 2)) {
+					ctx.fillText(dLine, sideX, sy);
+					sy += 30;
+				}
+				sy += 24;
+			}
 
 			if (film.watchedDate) {
 				ctx.fillStyle = palette.muted;
@@ -1075,19 +1112,26 @@
 			const posterY = ty + 100 + Math.round((topAvailH - posterH) / 2);
 			drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 12, palette, isLight);
 
-			// Bottom stub: Title, rating, optional review
-			let cy = notchY + (isStory ? 86 : 68);
+			// Bottom stub: Title, director, rating, optional review
+			let cy = notchY + (isStory ? 82 : 64);
 			ctx.textAlign = 'center';
 			ctx.fillStyle = palette.ink;
-			ctx.font = `500 ${isStory ? 56 : 46}px "Newsreader", Georgia, serif`;
+			ctx.font = `500 ${isStory ? 54 : 44}px "Newsreader", Georgia, serif`;
 			for (const line of wrapCanvasText(ctx, film.title, innerW, 2)) {
 				ctx.fillText(line, W / 2, cy);
-				cy += isStory ? 66 : 54;
+				cy += isStory ? 64 : 52;
+			}
+
+			if (film.director) {
+				ctx.fillStyle = palette.muted;
+				ctx.font = `italic 400 ${isStory ? 28 : 24}px "Newsreader", Georgia, serif`;
+				ctx.fillText(`Directed by ${film.director}`, W / 2, cy + 2);
+				cy += isStory ? 44 : 36;
 			}
 
 			cy += 8;
 			drawCenteredMetaRow(ctx, film, W / 2, cy, palette);
-			cy += isStory ? 64 : 48;
+			cy += isStory ? 62 : 46;
 
 			const stubFootY = ty + th - 58;
 			if (showReview) {
@@ -1151,13 +1195,20 @@
 
 		drawPosterOrSleeve(ctx, posterImg, film, posterX, posterY, posterW, posterH, 16, palette, isLight);
 
-		let cursorY = posterY + posterH + (isStory ? 84 : 64);
+		let cursorY = posterY + posterH + (isStory ? 80 : 60);
 		ctx.textAlign = 'center';
 		ctx.fillStyle = palette.ink;
-		ctx.font = `500 ${isStory ? 62 : 52}px "Newsreader", Georgia, serif`;
+		ctx.font = `500 ${isStory ? 60 : 50}px "Newsreader", Georgia, serif`;
 		for (const line of wrapCanvasText(ctx, film.title, innerW, 2)) {
 			ctx.fillText(line, W / 2, cursorY);
-			cursorY += isStory ? 72 : 60;
+			cursorY += isStory ? 70 : 58;
+		}
+
+		if (film.director) {
+			ctx.fillStyle = palette.muted;
+			ctx.font = `italic 400 ${isStory ? 30 : 26}px "Newsreader", Georgia, serif`;
+			ctx.fillText(`Directed by ${film.director}`, W / 2, cursorY + 4);
+			cursorY += isStory ? 46 : 38;
 		}
 
 		cursorY += 12;
@@ -1201,6 +1252,17 @@
 		ctx.fillText("MOON'S FILM DIARY", W / 2, footerTop + 20);
 	}
 
+	function syncReviewButton(canShowReview) {
+		els.shareReviewBtn.disabled = !canShowReview;
+		els.shareReviewBtn.classList.toggle('is-disabled', !canShowReview);
+		els.shareReviewBtn.classList.toggle('active', canShowReview && shareState.includeReview);
+		els.shareReviewBtn.setAttribute('aria-pressed', String(canShowReview && shareState.includeReview));
+		els.shareReviewIcon.textContent = (canShowReview && shareState.includeReview) ? '✓' : '＋';
+		els.shareReviewBtn.title = canShowReview
+			? 'Toggle review text on card'
+			: (shareState.film?.hasSpoilers ? 'Hidden on card (contains spoilers)' : 'No written review for this entry');
+	}
+
 	function openShareModal() {
 		if (state.activeKind !== 'film' || state.activeIndex < 0) return;
 		const film = state.visibleItems[state.activeIndex];
@@ -1208,13 +1270,7 @@
 		shareState.theme = document.documentElement.getAttribute('data-theme') || 'dark';
 		const canShowReview = Boolean(film.isReview && !film.hasSpoilers && film.plainText);
 		shareState.includeReview = canShowReview;
-
-		els.shareReviewToggle.checked = canShowReview;
-		els.shareReviewToggle.disabled = !canShowReview;
-		els.shareReviewLabel.classList.toggle('is-disabled', !canShowReview);
-		els.shareReviewLabel.title = canShowReview
-			? 'Include review quote on card'
-			: (film.hasSpoilers ? 'Hidden on card (contains spoilers)' : 'No written review for this entry');
+		syncReviewButton(canShowReview);
 
 		els.shareStyleToggle.querySelectorAll('.view-btn').forEach(b => {
 			b.classList.toggle('active', b.dataset.style === shareState.style);
@@ -1263,8 +1319,10 @@
 		renderShareCard();
 	});
 
-	els.shareReviewToggle.addEventListener('change', () => {
-		shareState.includeReview = els.shareReviewToggle.checked;
+	els.shareReviewBtn.addEventListener('click', () => {
+		if (els.shareReviewBtn.disabled) return;
+		shareState.includeReview = !shareState.includeReview;
+		syncReviewButton(true);
 		renderShareCard();
 	});
 
@@ -1316,7 +1374,7 @@
 			...f,
 			stars: formatStars(f.rating),
 			order: i,
-			_search: `${f.title || ''} ${f.year || ''} ${f.plainText || ''}`.toLowerCase()
+			_search: `${f.title || ''} ${f.director || ''} ${f.year || ''} ${f.plainText || ''}`.toLowerCase()
 		}));
 		state.lists = data.lists || [];
 		state.recentReviews = state.films.filter(f => f.isReview).slice(0, 5);

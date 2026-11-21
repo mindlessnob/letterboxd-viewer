@@ -404,10 +404,29 @@ def update_archive_json(tree, cleaned_descriptions=None):
             except Exception:
                 pub_ts = 0
 
+        # Preserve or fetch director via TMDB movieId if TMDB_API_KEY is available
+        existing_dir = existing_films.get(guid, {}).get('director', '')
+        if not existing_dir and matched_old_id and 'old_entry' in locals():
+            existing_dir = old_entry.get('director', '')
+        director = existing_dir
+        tmdb_movie_id = get_ns_text(item, 'movieId')
+        tmdb_key = os.environ.get('TMDB_API_KEY', '').strip()
+        if not director and tmdb_movie_id and tmdb_key:
+            try:
+                headers = {'Authorization': f'Bearer {tmdb_key}'} if tmdb_key.startswith('eyJ') else {}
+                params = {} if tmdb_key.startswith('eyJ') else {'api_key': tmdb_key}
+                cr = requests.get(f'https://api.themoviedb.org/3/movie/{tmdb_movie_id}/credits', params=params, headers=headers, timeout=10)
+                if cr.status_code == 200:
+                    dirs = [c.get('name', '').strip() for c in cr.json().get('crew', []) if c.get('job') == 'Director' and c.get('name')]
+                    director = ', '.join(dict.fromkeys(dirs[:2]))
+            except Exception:
+                pass
+
         existing_films[guid] = {
             'id': guid,
             'slug': slug,
             'title': film_title,
+            'director': director,
             'year': film_year,
             'watchedDate': watched_date,
             'pubTimestamp': pub_ts,

@@ -33,6 +33,7 @@ jobs:
       - name: Run RSS feed download script
         env:
           LETTERBOXD_RSS_URL: ${{ secrets.LETTERBOXD_RSS_URL }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
         run: python scripts/download_rss.py
 
       - name: Commit and push if changes exist

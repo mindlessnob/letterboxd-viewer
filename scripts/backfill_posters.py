@@ -35,7 +35,6 @@ def load_tmdb_key():
 def norm_title(s):
     if not s:
         return ''
-    # Decompose accents and strip diacritics
     s = unicodedata.normalize('NFKD', s)
     s = ''.join(ch for ch in s if not unicodedata.combining(ch))
     s = s.lower().replace('&', ' and ')
@@ -52,22 +51,17 @@ def extract_year(date_str):
 
 def pick_strict_match(results, target_title, target_year, is_tv=False):
     """
-    Strict matcher: ONLY accepts an exact normalized title (or original_title) match
-    with release year matching exactly (preferred) or within +-1 year (festival/regional offset).
-    Never accepts partial or fuzzy title matches.
+    Strict matcher: ONLY accepts exact normalized title/original_title + exact year (preferred)
+    or +-1 year. Returns (tmdb_id, poster_path) or None.
     """
     target_norm = norm_title(target_title)
     if not target_norm:
         return None
 
-    exact_year_candidates = []
-    near_year_candidates = []
+    exact_year = []
+    near_year = []
 
     for r in results:
-        poster_path = r.get('poster_path')
-        if not poster_path:
-            continue
-
         t1 = norm_title(r.get('name' if is_tv else 'title') or '')
         t2 = norm_title(r.get('original_name' if is_tv else 'original_title') or '')
         if target_norm != t1 and target_norm != t2:
@@ -75,26 +69,23 @@ def pick_strict_match(results, target_title, target_year, is_tv=False):
 
         ry = extract_year(r.get('first_air_date' if is_tv else 'release_date') or '')
         pop = float(r.get('popularity') or 0.0)
+        entry = (pop, r.get('id'), r.get('poster_path') or '')
 
-        if target_year is None:
-            exact_year_candidates.append((pop, poster_path))
-        elif ry == target_year:
-            exact_year_candidates.append((pop, poster_path))
+        if target_year is None or ry == target_year:
+            exact_year.append(entry)
         elif ry is not None and abs(ry - target_year) == 1:
-            near_year_candidates.append((pop, poster_path))
+            near_year.append(entry)
 
-    if exact_year_candidates:
-        exact_year_candidates.sort(key=lambda x: x[0], reverse=True)
-        return exact_year_candidates[0][1]
-
-    if near_year_candidates:
-        near_year_candidates.sort(key=lambda x: x[0], reverse=True)
-        return near_year_candidates[0][1]
-
+    if exact_year:
+        exact_year.sort(key=lambda x: x[0], reverse=True)
+        return exact_year[0][1], exact_year[0][2]
+    if near_year:
+        near_year.sort(key=lambda x: x[0], reverse=True)
+        return near_year[0][1], near_year[0][2]
     return None
 
 
-def tmdb_get(session, endpoint, params, headers):
+def tmdb_get_json(session, endpoint, params, headers):
     for attempt in range(4):
         try:
             resp = session.get(f'https://api.themoviedb.org/3/{endpoint}', params=params, headers=headers, timeout=15)
@@ -103,40 +94,58 @@ def tmdb_get(session, endpoint, params, headers):
                 time.sleep(wait + 0.25)
                 continue
             if resp.status_code == 200:
-                return resp.json().get('results', [])
-            return []
+                return resp.json()
+            return {}
         except requests.RequestException:
             time.sleep(0.5 * (attempt + 1))
-    return []
+    return {}
 
 
-def lookup_poster(session, title, year, api_key):
+def fetch_director(session, tmdb_id, is_tv, base_params, headers):
+    if not tmdb_id:
+        return ''
+    if is_tv:
+        details = tmdb_get_json(session, f'tv/{tmdb_id}', base_params, headers)
+        creators = [c.get('name', '').strip() for c in details.get('created_by', []) if c.get('name')]
+        if creators:
+            return ', '.join(creators[:2])
+        credits = tmdb_get_json(session, f'tv/{tmdb_id}/credits', base_params, headers)
+        dirs = [c.get('name', '').strip() for c in credits.get('crew', []) if c.get('job') == 'Director' and c.get('name')]
+        return ', '.join(dict.fromkeys(dirs[:2]))
+    else:
+        credits = tmdb_get_json(session, f'movie/{tmdb_id}/credits', base_params, headers)
+        dirs = [c.get('name', '').strip() for c in credits.get('crew', []) if c.get('job') == 'Director' and c.get('name')]
+        return ', '.join(dict.fromkeys(dirs[:2]))
+
+
+def lookup_metadata(session, title, year, api_key):
     is_bearer = api_key.startswith('eyJ')
     headers = {'Authorization': f'Bearer {api_key}'} if is_bearer else {}
     base_params = {} if is_bearer else {'api_key': api_key}
 
-    # 1. Search movies WITH year filter first (fast & precise)
+    match = None
+    is_tv = False
+
     if year:
-        params = {**base_params, 'query': title, 'year': year, 'include_adult': 'true'}
-        results = tmdb_get(session, 'search/movie', params, headers)
-        poster = pick_strict_match(results, title, year, is_tv=False)
-        if poster:
-            return poster
+        res = tmdb_get_json(session, 'search/movie', {**base_params, 'query': title, 'year': year, 'include_adult': 'true'}, headers).get('results', [])
+        match = pick_strict_match(res, title, year, is_tv=False)
 
-    # 2. Search movies WITHOUT year filter (catches +-1 year festival vs theatrical release dates)
-    params = {**base_params, 'query': title, 'include_adult': 'true'}
-    results = tmdb_get(session, 'search/movie', params, headers)
-    poster = pick_strict_match(results, title, year, is_tv=False)
-    if poster:
-        return poster
+    if not match:
+        res = tmdb_get_json(session, 'search/movie', {**base_params, 'query': title, 'include_adult': 'true'}, headers).get('results', [])
+        match = pick_strict_match(res, title, year, is_tv=False)
 
-    # 3. Fallback: check limited series / miniseries on TV with exact same strict rule
-    results = tmdb_get(session, 'search/tv', params, headers)
-    poster = pick_strict_match(results, title, year, is_tv=True)
-    if poster:
-        return poster
+    if not match:
+        res = tmdb_get_json(session, 'search/tv', {**base_params, 'query': title, 'include_adult': 'true'}, headers).get('results', [])
+        match = pick_strict_match(res, title, year, is_tv=True)
+        if match:
+            is_tv = True
 
-    return None
+    if not match:
+        return '', ''
+
+    tmdb_id, poster_path = match
+    director = fetch_director(session, tmdb_id, is_tv, base_params, headers)
+    return poster_path, director
 
 
 def main():
@@ -148,20 +157,19 @@ def main():
     data = json.loads(ARCHIVE_JSON.read_text(encoding='utf-8'))
     films = data.get('films', [])
 
-    # Collect unique (title, year) pairs missing posters
     missing_keys = []
     seen = set()
     for f in films:
-        if f.get('thumb'):
+        if f.get('thumb') and f.get('director'):
             continue
         k = (f.get('title', '').strip(), f.get('year'))
         if k[0] and k not in seen:
             seen.add(k)
             missing_keys.append(k)
 
-    print(f'Unique (title, year) pairs needing posters: {len(missing_keys)}')
+    print(f'Unique (title, year) pairs needing director/poster: {len(missing_keys)}')
     if not missing_keys:
-        print('Nothing to backfill!')
+        print('All entries already have posters & directors!')
         return
 
     found_map = {}
@@ -170,42 +178,49 @@ def main():
     session.mount('https://', adapter)
 
     done = 0
-    matched = 0
+    matched_dirs = 0
     t0 = time.time()
 
     with ThreadPoolExecutor(max_workers=10) as pool:
-        futures = {pool.submit(lookup_poster, session, t, y, api_key): (t, y) for t, y in missing_keys}
+        futures = {pool.submit(lookup_metadata, session, t, y, api_key): (t, y) for t, y in missing_keys}
         for fut in as_completed(futures):
             k = futures[fut]
             done += 1
             try:
-                poster_path = fut.result()
-                if poster_path:
-                    found_map[k] = poster_path
-                    matched += 1
+                poster_path, director = fut.result()
+                if poster_path or director:
+                    found_map[k] = (poster_path, director)
+                    if director:
+                        matched_dirs += 1
             except Exception:
                 pass
-            if done % 250 == 0 or done == len(missing_keys):
+            if done % 300 == 0 or done == len(missing_keys):
                 elapsed = time.time() - t0
-                print(f'Progress: {done}/{len(missing_keys)} checked | {matched} strict matches ({elapsed:.1f}s)')
+                print(f'Progress: {done}/{len(missing_keys)} checked | {matched_dirs} directors matched ({elapsed:.1f}s)')
 
-    updated_entries = 0
+    updated = 0
     for f in films:
-        if f.get('thumb'):
-            continue
         k = (f.get('title', '').strip(), f.get('year'))
-        poster_path = found_map.get(k)
-        if poster_path:
+        if k not in found_map:
+            continue
+        poster_path, director = found_map[k]
+        changed = False
+        if not f.get('thumb') and poster_path:
             f['thumb'] = f'https://image.tmdb.org/t/p/w500{poster_path}'
             f['full'] = f'https://image.tmdb.org/t/p/w780{poster_path}'
-            updated_entries += 1
+            changed = True
+        if not f.get('director') and director:
+            f['director'] = director
+            changed = True
+        if changed:
+            updated += 1
 
     json_str = json.dumps(data, ensure_ascii=False, separators=(',', ':'))
     ARCHIVE_JSON.write_text(json_str, encoding='utf-8')
     ARCHIVE_JS.write_text(f'window.__DIARY_DATA__={json_str};\n', encoding='utf-8')
 
-    total_with_posters = sum(1 for f in films if f.get('thumb'))
-    print(f'Done! Updated {updated_entries} entries. Total films with posters: {total_with_posters}/{len(films)} ({total_with_posters*100/len(films):.1f}%)')
+    total_dirs = sum(1 for f in films if f.get('director'))
+    print(f'Done! Updated {updated} entries. Total films with director: {total_dirs}/{len(films)} ({total_dirs*100/len(films):.1f}%)')
 
 
 if __name__ == '__main__':
