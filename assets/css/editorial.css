@@ -73,16 +73,22 @@ html {
 	-moz-osx-font-smoothing: grayscale;
 	scroll-behavior: smooth;
 	transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+	overflow-x: clip;
+	max-width: 100%;
 }
 
 body {
 	margin: 0;
 	min-height: 100vh;
+	width: 100%;
+	max-width: 100%;
+	overflow-x: clip;
 	background:
 		radial-gradient(ellipse 80% 50% at 50% -10%, var(--page-glow), transparent 70%),
 		var(--bg);
 	color: var(--ink);
 	line-height: 1.5;
+	touch-action: pan-y;
 }
 
 body.modal-open {
@@ -961,7 +967,7 @@ button, input, select, textarea {
 /* ── Curated Lists Grid ── */
 .lists-grid {
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
 	gap: 1.25rem;
 	padding-bottom: 4rem;
 }
@@ -1424,10 +1430,28 @@ button, input, select, textarea {
 	}
 }
 
+@media (hover: none) {
+	.film-card:hover .poster-frame,
+	.list-card:hover,
+	.btn-primary:hover {
+		transform: none;
+	}
+
+	.film-card:hover .poster-frame img,
+	.hero-poster-wrap:hover .hero-poster {
+		transform: none;
+	}
+}
+
 @media (max-width: 736px) {
 	.masthead-inner {
-		padding: 0.85rem 1.15rem;
+		padding: 0.75rem 1rem;
 		flex-wrap: wrap;
+		gap: 0.65rem;
+	}
+
+	.brand-title {
+		font-size: 1.32rem;
 	}
 
 	.brand-meta {
@@ -1437,11 +1461,19 @@ button, input, select, textarea {
 	.masthead-actions {
 		width: 100%;
 		justify-content: space-between;
+		gap: 0.5rem;
 	}
 
 	.search-wrap {
 		flex: 1;
+		min-width: 0;
 		width: auto;
+	}
+
+	/* 16px prevents iOS Safari auto-zooming & horizontal panning on focus */
+	.search-input {
+		font-size: 16px;
+		padding: 0.48rem 0.9rem 0.48rem 2.2rem;
 	}
 
 	.search-kbd {
@@ -1449,45 +1481,114 @@ button, input, select, textarea {
 	}
 
 	.container {
-		padding: 0 1.15rem;
+		padding: 0 1rem;
+		width: 100%;
+		max-width: 100%;
 	}
 
 	.hero-section {
-		padding: 1.4rem 0 1.65rem;
+		padding: 1.1rem 0 1.35rem;
 	}
 
 	.hero-card {
-		grid-template-columns: 1fr;
-		padding: 1.45rem;
-		gap: 1.35rem;
+		grid-template-columns: minmax(0, 1fr);
+		padding: 1.25rem;
+		gap: 1.1rem;
+	}
+
+	.hero-copy {
+		min-width: 0;
 	}
 
 	.hero-poster-wrap {
 		order: -1;
 		justify-self: start;
-		max-width: 150px;
+		max-width: 128px;
+	}
+
+	.hero-title {
+		font-size: 1.65rem;
+		word-break: break-word;
 	}
 
 	.hero-excerpt {
-		font-size: 1.02rem;
-		-webkit-line-clamp: 5;
+		font-size: 0.98rem;
+		line-height: 1.62;
+		margin-bottom: 1.2rem;
+		-webkit-line-clamp: 4;
+	}
+
+	.toolbar {
+		padding: 1.15rem 0 1rem;
+		gap: 0.85rem;
+	}
+
+	/* Single tidy horizontally-scrollable pill strip (no page overflow) */
+	.filter-pills {
+		width: 100%;
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: none;
+		padding-bottom: 2px;
+	}
+
+	.filter-pills::-webkit-scrollbar {
+		display: none;
+	}
+
+	.pill {
+		flex-shrink: 0;
+		padding: 0.38rem 0.78rem;
+		font-size: 0.76rem;
+	}
+
+	.toolbar-right {
+		width: 100%;
+		display: grid;
+		grid-template-columns: auto 1fr 1fr;
+		gap: 0.45rem;
+		align-items: center;
+	}
+
+	.view-btn {
+		padding: 0.34rem 0.55rem;
+		font-size: 0.72rem;
+	}
+
+	.sort-select {
+		width: 100%;
+		min-width: 0;
+		font-size: 0.74rem;
+		padding: 0.42rem 1.55rem 0.42rem 0.72rem;
+		text-overflow: ellipsis;
 	}
 
 	.film-grid {
-		grid-template-columns: repeat(2, 1fr);
-		gap: 1.25rem 0.9rem;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 1.1rem 0.75rem;
+		padding-bottom: 2.75rem;
+	}
+
+	.card-title {
+		font-size: 0.96rem;
 	}
 
 	.diary-row {
-		grid-template-columns: 44px 46px 1fr;
-		gap: 0.75rem;
-		padding: 0.85rem 0.35rem;
+		grid-template-columns: 40px 44px minmax(0, 1fr);
+		gap: 0.7rem;
+		padding: 0.85rem 0.2rem;
+	}
+
+	.diary-thumb,
+	.diary-thumb-typo {
+		width: 44px;
 	}
 
 	.diary-right {
 		grid-column: 3;
 		justify-content: flex-start;
-		margin-top: -0.25rem;
+		margin-top: -0.2rem;
 	}
 
 	.modal-backdrop {
@@ -1497,8 +1598,13 @@ button, input, select, textarea {
 
 	.reader-modal {
 		grid-template-columns: 1fr;
-		max-height: 92vh;
+		width: 100%;
+		max-width: 100%;
+		max-height: 92dvh;
 		border-radius: 16px 16px 0 0;
+		border-left: none;
+		border-right: none;
+		border-bottom: none;
 		display: flex;
 		flex-direction: column;
 	}
@@ -1506,24 +1612,25 @@ button, input, select, textarea {
 	.reader-aside {
 		flex-direction: row;
 		align-items: center;
-		padding: 0.95rem 1.2rem;
+		padding: 0.9rem 1rem;
 		border-right: none;
 		border-bottom: 1px solid var(--border);
 		flex-shrink: 0;
 	}
 
 	.reader-poster {
-		width: 68px;
+		width: 64px;
 		flex-shrink: 0;
 	}
 
 	.reader-facts {
 		flex: 1;
-		gap: 0.2rem;
+		min-width: 0;
+		gap: 0.18rem;
 	}
 
 	.fact-row {
-		padding-bottom: 0.18rem;
+		padding-bottom: 0.16rem;
 		border-bottom: none;
 	}
 
@@ -1534,14 +1641,63 @@ button, input, select, textarea {
 	}
 
 	.reader-top-bar {
-		padding: 0.75rem 1.2rem;
+		padding: 0.7rem 1rem;
+		gap: 0.4rem;
+	}
+
+	.reader-counter {
+		display: none;
+	}
+
+	.reader-top-actions {
+		gap: 0.35rem;
+	}
+
+	.reader-top-actions .btn-ghost {
+		padding: 0.3rem 0.62rem !important;
+		font-size: 0.7rem !important;
 	}
 
 	.reader-scroll {
-		padding: 1.25rem 1.2rem 2.25rem;
+		padding: 1.15rem 1.05rem calc(2rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	.reader-title {
+		font-size: 1.55rem;
+		word-break: break-word;
 	}
 
 	.reader-prose {
 		font-size: 1.02rem;
+		line-height: 1.72;
+		word-break: break-word;
+	}
+
+	.share-modal {
+		width: 100%;
+		max-width: 100%;
+		max-height: 92dvh;
+		border-radius: 16px 16px 0 0;
+		border-left: none;
+		border-right: none;
+		border-bottom: none;
+		padding: 1.25rem 1.15rem calc(1.35rem + env(safe-area-inset-bottom, 0px));
+	}
+
+	.toast-stack {
+		left: 1rem;
+		right: 1rem;
+		bottom: 1rem;
+	}
+}
+
+@media (max-width: 400px) {
+	.toolbar-right {
+		grid-template-columns: 1fr 1fr;
+	}
+
+	.view-toggle {
+		grid-column: 1 / -1;
+		justify-self: start;
 	}
 }
