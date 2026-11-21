@@ -1,5 +1,5 @@
 window.__DIARY_DATA__ = {
-  "updatedAt": "2026-11-21T16:20:00Z",
+  "updatedAt": "2026-11-21T16:37:09Z",
   "films": [
     {
       "id": "letterboxd-watch-1595809778",
